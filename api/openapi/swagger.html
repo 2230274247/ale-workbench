@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ALE 实验工作台 API · Swagger UI</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    :root { color-scheme: light }
+    body { margin: 0; background: #fafafa;
+           font-family: "Segoe UI","Microsoft YaHei",sans-serif }
+    .topbar { display: none }
+    .banner { padding: 14px 20px; background: #1f4e5f; color: #fff }
+    .banner h1 { margin: 0 0 4px; font-size: 17px; font-weight: 600 }
+    .banner p { margin: 0; font-size: 12.5px; opacity: .85 }
+    .note { padding: 10px 20px; background: #fff8e1; color: #7a5c00;
+             font-size: 12.5px; border-bottom: 1px solid #f0e0b0 }
+  </style>
+</head>
+<body>
+<div class="banner">
+  <h1>ALE 实验工作台 API</h1>
+  <p>OpenAPI 3.1 · 119 个路径 · 180 个端点 · 基础路径 /api/v1</p>
+</div>
+<div class="note">
+  版本 1.8.0 · 已实现 123 操作 · planned 57 操作；planned 为规划，模型存在不表示功能已实现<br>需联网加载 Swagger UI 资源。内嵌契约版：<code>swagger-embedded.html</code>。
+  接口契约源文件：<code>openapi.bundled.yaml</code>
+</div>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+window.onload = () => {
+  window.ui = SwaggerUIBundle({
+    url: './openapi.bundled.yaml',
+    dom_id: '#swagger-ui',
+    deepLinking: true,
+    docExpansion: 'list',
+    defaultModelsExpandDepth: 1,
+    tryItOutEnabled: true,
+    displayRequestDuration: true,
+    filter: true,
+    persistAuthorization: true,
+    presets: [SwaggerUIBundle.presets.apis],
+    layout: 'BaseLayout',
+  });
+};
+</script>
+</body>
+</html>

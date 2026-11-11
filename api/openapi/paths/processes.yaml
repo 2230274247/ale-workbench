@@ -1,0 +1,989 @@
+/api/v1/plans:
+  get:
+    tags:
+    - 实验计划
+    summary: 实验计划列表
+    operationId: listPlans
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/SortParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: status
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/PlanStatus
+    - name: priority
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/PlanPriority
+    - name: batch_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    - name: owner_user_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    - name: include_voided
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+        title: Include Voided
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/ExperimentPlan
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+    description: 登录用户可读。admin 全部可见；operator/viewer 仅自己的计划（owner_user_id）或运行（operator_user_id），且关联批次、计划、全部参与样品均须可见；越权资源返回 404。
+      默认 -created_at，keyword 搜索 plan_code/title。排序白名单：plan_id, plan_code, title, status, priority, planned_start, planned_end,
+      created_at, updated_at；逗号分隔，- 表示降序。
+  post:
+    tags:
+    - 实验计划
+    summary: 创建实验计划
+    operationId: createPlan
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/PlanCreate
+    responses:
+      '201':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ExperimentPlanDetail
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 服务端确定 owner_user_id；planned_end 不得早于 planned_start。
+/api/v1/plans/{id}:
+  get:
+    tags:
+    - 实验计划
+    summary: 实验计划详情
+    description: 登录用户可读。admin 全部可见；operator/viewer 仅自己的计划（owner_user_id）或运行（operator_user_id），且关联批次、计划、全部参与样品均须可见；越权资源返回 404。
+    operationId: getPlan
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ExperimentPlanDetail
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+  patch:
+    tags:
+    - 实验计划
+    summary: 更新实验计划
+    operationId: updatePlan
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/PlanUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ExperimentPlanDetail
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 expected_row_version 可选，匹配计划版本；已有运行的批次必须保留匹配，否则
+      409。
+  delete:
+    tags:
+    - 实验计划
+    summary: 删除实验计划
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 存在计划步骤、关联运行或其他科学依赖返回 409；不置空关联、不级联删除。
+    operationId: deletePlan
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    - name: expected_row_version
+      in: query
+      required: false
+      description: 可选；匹配父计划/运行 row_version，否则 409。子记录删除比较父版本。
+      schema:
+        type:
+        - integer
+        - 'null'
+        minimum: 1
+    responses:
+      '204':
+        description: 已删除
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/processes:
+  get:
+    tags:
+    - 实验执行
+    summary: 工艺运行列表
+    description: 登录用户可读。admin 全部可见；operator/viewer 仅自己的计划（owner_user_id）或运行（operator_user_id），且关联批次、计划、全部参与样品均须可见；越权资源返回 404。
+      默认 -created_at；keyword 仅搜索 process_code。date_from/date_to 对 started_at 作闭区间筛选。排序白名单：process_id, process_code, process_mode,
+      started_at, ended_at, created_at, updated_at, log_status。
+    operationId: listProcesses
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/SortParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: process_mode
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/ProcessMode
+    - name: plan_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    - name: batch_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    - name: log_status
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/ProcessLogStatus
+    - name: is_independent_run
+      in: query
+      description: 筛选独立运行（false 为共腔）
+      schema:
+        type: boolean
+    - name: co_etch_group
+      in: query
+      schema:
+        type: string
+        maxLength: 64
+    - name: date_from
+      in: query
+      schema:
+        type: string
+        format: date-time
+    - name: date_to
+      in: query
+      schema:
+        type: string
+        format: date-time
+    - name: include_voided
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+        title: Include Voided
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Process
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+  post:
+    tags:
+    - 实验执行
+    summary: 创建工艺运行
+    operationId: createProcess
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ProcessCreate
+    responses:
+      '201':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ProcessDetail
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 steps/samples 各最多 500 条，在同一事务创建；样品绑定不改变样品状态。服务端确定
+      operator_user_id。计划指定批次时运行 batch_id 必须相同。
+/api/v1/processes/{id}:
+  get:
+    tags:
+    - 实验执行
+    summary: 工艺运行详情
+    description: 登录用户可读。admin 全部可见；operator/viewer 仅自己的计划（owner_user_id）或运行（operator_user_id），且关联批次、计划、全部参与样品均须可见；越权资源返回 404。
+    operationId: getProcess
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ProcessDetail
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+  patch:
+    tags:
+    - 实验执行
+    summary: 更新工艺运行
+    operationId: updateProcess
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ProcessUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ProcessDetail
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 expected_row_version 可选，匹配运行版本；已有样品冲突或步骤映射阻止更改批次/计划时返回
+      409。运行有任意流转历史时禁止任何 PATCH（包括空 PATCH、参数、备注及其他字段），返回 409；同样冻结该运行全部实际步骤和样品绑定的 PATCH。ended_at 不得早于 started_at。
+  delete:
+    tags:
+    - 实验执行
+    summary: 删除工艺运行
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 存在步骤、样品绑定、流转、测量或其他科学依赖返回 409；不级联删除。
+    operationId: deleteProcess
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    - name: expected_row_version
+      in: query
+      required: false
+      description: 可选；匹配父计划/运行 row_version，否则 409。子记录删除比较父版本。
+      schema:
+        type:
+        - integer
+        - 'null'
+        minimum: 1
+    responses:
+      '204':
+        description: 已删除
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/processes/{id}/steps:
+  get:
+    tags:
+    - 实验执行
+    summary: 工艺步骤列表
+    operationId: listProcessSteps
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/ProcessStep
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+    description: 登录用户可读。admin 全部可见；operator/viewer 仅自己的计划（owner_user_id）或运行（operator_user_id），且关联批次、计划、全部参与样品均须可见；越权资源返回 404。
+  post:
+    tags:
+    - 实验执行
+    summary: 添加工艺步骤
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 客户端必须提交 step_index（1..4294967295）与 step_kind；运行内
+      step_index 唯一，冲突 409。plan_step_id 必须属于运行所关联计划，否则 422。未知实际参数保持 null，不从计划或配方自动补齐。成功递增运行 row_version。
+    operationId: createProcessStep
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ProcessStepCreate
+    responses:
+      '201':
+        description: 已添加
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ProcessStep
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/process-steps/{id}:
+  patch:
+    tags:
+    - 实验执行
+    summary: 更新工艺步骤
+    operationId: updateProcessStep
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ProcessStepUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ProcessStep
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 所属运行有任意流转历史时，全部实际步骤禁止任何 PATCH（包括参数、备注及空 PATCH），返回
+      409。expected_row_version 比较运行版本；成功递增运行 row_version。
+  delete:
+    tags:
+    - 实验执行
+    summary: 删除工艺步骤
+    operationId: deleteProcessStep
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    - name: expected_row_version
+      in: query
+      required: false
+      description: 可选；匹配父计划/运行 row_version，否则 409。子记录删除比较父版本。
+      schema:
+        type:
+        - integer
+        - 'null'
+        minimum: 1
+    responses:
+      '204':
+        description: 已删除
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 历史流转引用或其他科学依赖返回 409；成功递增运行 row_version。
+/api/v1/processes/{id}/samples:
+  get:
+    tags:
+    - 实验执行
+    summary: 该次运行的参与样品
+    description: 登录用户可读。admin 全部可见；operator/viewer 仅自己的计划（owner_user_id）或运行（operator_user_id），且关联批次、计划、全部参与样品均须可见；越权资源返回 404。
+    operationId: listProcessSamples
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/ProcessSampleLink
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+  post:
+    tags:
+    - 实验执行
+    summary: 关联样品到该次运行
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 仅建立参与绑定，不改变样品状态；装载/取出必须追加 load/unload 流转。运行指定批次时样品须属于该批次。重复绑定
+      409；成功递增运行 row_version。
+    operationId: linkProcessSample
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ProcessSampleCreate
+    responses:
+      '201':
+        description: 已关联
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ProcessSampleLink
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/process-samples/{id}:
+  patch:
+    tags:
+    - 实验执行
+    summary: 更新运行-样品关联
+    operationId: updateProcessSample
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ProcessSampleUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ProcessSampleLink
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 不允许更改 sample_id；所属运行有任意流转历史时，全部样品绑定禁止任何 PATCH（包括附加参数及空
+      PATCH），返回 409。更新逐片参数不会改变样品状态，expected_row_version 比较运行版本。成功递增运行 row_version。
+  delete:
+    tags:
+    - 实验执行
+    summary: 解除运行-样品关联
+    operationId: unlinkProcessSample
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    - name: expected_row_version
+      in: query
+      required: false
+      description: 可选；匹配父计划/运行 row_version，否则 409。子记录删除比较父版本。
+      schema:
+        type:
+        - integer
+        - 'null'
+        minimum: 1
+    responses:
+      '204':
+        description: 已解除
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 该样品在该运行中已有任意流转历史则返回 409；成功递增运行 row_version，不改变样品状态。
+/api/v1/plans/{id}/steps:
+  get:
+    tags:
+    - 实验计划
+    summary: 计划步骤列表
+    operationId: listPlanSteps
+    x-implementation-status: implemented
+    description: 登录用户可读。admin 全部可见；operator/viewer 仅自己的计划（owner_user_id）或运行（operator_user_id），且关联批次、计划、全部参与样品均须可见；越权资源返回 404。
+      按 step_index 升序返回，不分页。
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/PlanStep
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+  post:
+    tags:
+    - 实验计划
+    summary: 添加计划步骤
+    operationId: createPlanStep
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 step_index 由客户端提供，计划内唯一（重复 409）；planned_parameters
+      只接受 StepParameters 白名单。成功递增计划 row_version。
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '201':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/PlanStep
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/PlanStepCreate
+/api/v1/plan-steps/{id}:
+  patch:
+    tags:
+    - 实验计划
+    summary: 更新计划步骤
+    operationId: updatePlanStep
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 step_index 由客户端提供，计划内唯一（重复 409）；planned_parameters
+      只接受 StepParameters 白名单。成功递增计划 row_version。 expected_row_version 比较父计划版本；步骤已被实际步骤映射时，更新/删除均返回 409。
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/PlanStep
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/PlanStepUpdate
+  delete:
+    tags:
+    - 实验计划
+    summary: 删除计划步骤
+    operationId: deletePlanStep
+    x-implementation-status: implemented
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 step_index 由客户端提供，计划内唯一（重复 409）；planned_parameters
+      只接受 StepParameters 白名单。成功递增计划 row_version。 expected_row_version 比较父计划版本；步骤已被实际步骤映射时，更新/删除均返回 409。
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    - name: expected_row_version
+      in: query
+      required: false
+      description: 可选；匹配父计划/运行 row_version，否则 409。子记录删除比较父版本。
+      schema:
+        type:
+        - integer
+        - 'null'
+        minimum: 1
+    responses:
+      '204':
+        description: 已删除，无响应体
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+/api/v1/processes/{id}/samples/batch:
+  post:
+    tags:
+    - 实验执行
+    summary: 批量绑定样品到该次运行
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 sample_ids 1–50，去重后逐条校验（样品可见；执行有 batch 时样品必须同批；同一执行未重复绑定，含本次内重复）。公共附加字段对每条相同；任一失败整事务
+      409/422，消息指出 sample_id。运行已有任意流转历史时返回 409（与单条一致）。成功返回 created[]（含 sample）与 count，父版本仅递增一次。
+    operationId: createProcessSamplesBatch
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/BatchLinkCreate
+    responses:
+      '201':
+        description: 已绑定
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: object
+                    required:
+                    - created
+                    - count
+                    properties:
+                      created:
+                        type: array
+                        items:
+                          $ref: ../openapi.yaml#/components/schemas/ProcessSampleLink
+                      count:
+                        type: integer
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+/api/v1/plans/{id}/archive:
+  post:
+    tags:
+    - 实验计划
+    summary: 归档实验计划
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 设置 status='archived'（迁移 0006 扩展 CHECK）；已归档幂等返回当前详情。expected_row_version
+      可选，不匹配返回 409。列表 status 筛选接受 archived；归档保留 DELETE，无任何执行时删除成功，有执行时 409，前端应引导归档。
+    operationId: archivePlan
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/PlanArchive
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ExperimentPlanDetail
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+/api/v1/processes/{id}/archive:
+  post:
+    tags:
+    - 实验执行
+    summary: 归档执行
+    description: admin/operator 且记录可见。expected_row_version 必填严格正整数，不匹配409；首次设置 archived_at 并递增版本。使用最新版本重复归档幂等；保留原科学状态与全部依赖。
+    operationId: archiveProcess
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/RecordArchive
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ProcessDetail
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented

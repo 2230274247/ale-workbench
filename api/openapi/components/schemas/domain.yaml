@@ -1,0 +1,3706 @@
+BatchStatus:
+  type: string
+  enum:
+  - active
+  - archived
+  - quarantined
+  description: '批次状态。
+
+    - `active`      正常使用
+
+    - `archived`    已归档
+
+    - `quarantined` 已隔离（如 PECVD 温度异常批次）
+
+    '
+Batch:
+  type: object
+  description: '沉积批次。**批次是数据可比性的强制隔离边界**——
+
+    不同批次初始厚度约 30/300/74/47nm，不应合并拟合。
+
+
+    阶段 1：admin 全部可见；operator/viewer 仅自己的 owner_user_id；样品所属批次也必须可见，无共享。'
+  required:
+  - batch_id
+  - batch_code
+  - batch_name
+  - material
+  - anomaly_flag
+  - status
+  - created_at
+  - row_version
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  properties:
+    batch_id:
+      type: integer
+      format: int64
+      examples:
+      - 1
+    batch_code:
+      type: string
+      maxLength: 64
+      description: 批次编码，全局唯一
+      examples:
+      - B-20260831-W01
+    batch_name:
+      type: string
+      maxLength: 255
+      examples:
+      - 8/31 批次 约30nm W01
+    material:
+      type: string
+      maxLength: 128
+      examples:
+      - PECVD SiNx:H
+    wafer_size:
+      type:
+      - string
+      - 'null'
+      maxLength: 32
+      examples:
+      - 4inchx4inch
+    nominal_thickness_nm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,3)
+      description: 标称厚度（nm）。为 string 以避免浮点精度损失。
+      examples:
+      - '30.000'
+    deposit_recipe_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    deposit_date:
+      type:
+      - string
+      - 'null'
+      format: date
+    deposit_set_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      description: PECVD 设定温度（℃）
+      examples:
+      - '275.00'
+    deposit_actual_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      description: 'PECVD 实测温度（℃）。**必须与设定值分开记录**——
+
+        ISS-02 要求不可据文件名断言温度异常幅度。
+
+        '
+      examples:
+      - '275.00'
+    deposit_gas_flows:
+      type:
+      - object
+      - 'null'
+      additionalProperties: true
+      description: '沉积气体流量，如 {"SiH4": 20, "NH3": 100, "N2": 200}'
+    source_zip:
+      type:
+      - string
+      - 'null'
+      maxLength: 255
+      examples:
+      - 1.-2026.8.31-SiN.zip
+    source_zip_sha256:
+      type:
+      - string
+      - 'null'
+      pattern: ^[a-f0-9]{64}$
+      description: 原始压缩包 SHA-256，用于溯源校验
+      examples:
+      - 93e9e8593de2ccc83ac75ab7058f313d16b1b84bdd3471c6101310bfb185b99a
+    anomaly_flag:
+      type: boolean
+      description: 是否为已知异常批次
+      examples:
+      - false
+    anomaly_note:
+      type:
+      - string
+      - 'null'
+      description: 异常描述。**禁止据文件名断言故障机理**（ISS-02）。
+    owner_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    status:
+      $ref: '#/BatchStatus'
+    notes:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本，每次更新递增。
+    archived_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+      readOnly: true
+      x-db-column: batches.archived_at
+      description: 独立归档时间；null 表示未归档，不改原有科学状态。
+    voided_at:
+      anyOf:
+      - &id001
+        type: string
+        format: date-time
+      - type: 'null'
+      readOnly: true
+      x-db-column: batches.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: batches.void_reason
+    voided_by_user_id:
+      anyOf:
+      - &id002
+        type: integer
+        exclusiveMinimum: 0
+      - type: 'null'
+      readOnly: true
+      x-db-column: batches.voided_by_user_id
+BatchCreate:
+  type: object
+  required:
+  - batch_code
+  - batch_name
+  properties:
+    batch_code:
+      type: string
+      maxLength: 64
+    batch_name:
+      type: string
+      maxLength: 255
+    material:
+      type: string
+      maxLength: 128
+      default: PECVD SiNx:H
+    wafer_size:
+      type: string
+      maxLength: 32
+    nominal_thickness_nm:
+      type: string
+      x-db-type: decimal(12,3)
+    deposit_recipe_id:
+      type: integer
+      format: int64
+    deposit_date:
+      type: string
+      format: date
+    deposit_set_temp_c:
+      type: string
+      x-db-type: decimal(8,2)
+    deposit_actual_temp_c:
+      type: string
+      x-db-type: decimal(8,2)
+    deposit_gas_flows:
+      type: object
+      additionalProperties: true
+    source_zip:
+      type: string
+    source_zip_sha256:
+      type: string
+      pattern: ^[a-f0-9]{64}$
+    anomaly_flag:
+      type: boolean
+      default: false
+    anomaly_note:
+      type: string
+    status:
+      $ref: '#/BatchStatus'
+    notes:
+      type: string
+BatchUpdate:
+  type: object
+  description: 批次更新（部分更新，仅传需修改字段）
+  properties:
+    batch_name:
+      type: string
+    wafer_size:
+      type:
+      - string
+      - 'null'
+    nominal_thickness_nm:
+      type:
+      - string
+      - 'null'
+    deposit_set_temp_c:
+      type:
+      - string
+      - 'null'
+    deposit_actual_temp_c:
+      type:
+      - string
+      - 'null'
+    deposit_gas_flows:
+      type:
+      - object
+      - 'null'
+      additionalProperties: true
+    anomaly_flag:
+      type: boolean
+    anomaly_note:
+      type:
+      - string
+      - 'null'
+    status:
+      $ref: '#/BatchStatus'
+    notes:
+      type:
+      - string
+      - 'null'
+    expected_row_version:
+      type: integer
+      minimum: 1
+      description: 可选；提供时必须匹配当前 row_version，否则返回 409。省略时保持原有更新行为。
+SampleType:
+  type: string
+  enum:
+  - parent_wafer
+  - full_wafer
+  - coupon
+  description: '样品类型。
+
+    - `parent_wafer` 母片（整片晶圆，切割前的原始片）
+
+    - `full_wafer`   整片（未切割，用于整片测量，如 81 点 O3-only）
+
+    - `coupon`       小样（从母片切下的小片）
+
+    '
+SampleStatus:
+  type: string
+  enum:
+  - available
+  - in_process
+  - consumed
+  - lost
+  - quarantined
+  description: 样品状态。
+Sample:
+  type: object
+  description: '样品。**工作台的中心实体**。
+
+    样品编码全局唯一（W01-S01 / B28-S06 / B05-S01 是不同样品，
+
+    不因数字相同而合并）。
+
+
+    阶段 1：admin 全部可见；operator/viewer 仅自己的 owner_user_id；样品所属批次也必须可见，无共享。'
+  required:
+  - sample_id
+  - sample_code
+  - batch_id
+  - sample_type
+  - status
+  - exclude_from_analysis
+  - created_at
+  - row_version
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  - archived_at
+  - archived_by_user_id
+  properties:
+    sample_id:
+      type: integer
+      format: int64
+    sample_code:
+      type: string
+      maxLength: 64
+      description: 全局唯一样品编码
+      examples:
+      - W01-S09
+    batch_id:
+      type: integer
+      format: int64
+    batch_code:
+      type: string
+      description: 所属批次编码（联表冗余，便于前端展示）
+      examples:
+      - B-20260831-W01
+    parent_sample_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 母片/上级样品 ID（支持母片-小样层级）
+    sample_type:
+      $ref: '#/SampleType'
+    display_label:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+      description: 原始文件中的编号，如 "1" / "9"
+      examples:
+      - '9'
+    nominal_thickness_nm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,3)
+    size_desc:
+      type:
+      - string
+      - 'null'
+      maxLength: 64
+      examples:
+      - 20mmx20mm
+    cut_position:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+    surface_state:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+    pre_treatment:
+      type:
+      - string
+      - 'null'
+      maxLength: 255
+      description: '前处理描述。ISS-05 要求必须记录前处理——
+
+        W01-S09 因酒精湿巾擦拭导致结果异常。
+
+        '
+      examples:
+      - 酒精湿巾擦拭后 HF-only
+    status:
+      $ref: '#/SampleStatus'
+    exclude_from_analysis:
+      type: boolean
+      description: '是否排除出常规统计。
+
+        **本字段在数据库层面固化异常样品隔离**——
+
+        W01-S09 表观减薄约 9.84nm（正常约 1.127nm），
+
+        严禁纳入常规 HF-only 速率均值（ISS-05）。
+
+        '
+      examples:
+      - true
+    exclude_reason:
+      type:
+      - string
+      - 'null'
+      description: 排除理由。`exclude_from_analysis=true` 时应填写。
+      examples:
+      - 'ISS-05: 酒精湿巾擦拭导致刻蚀量异常升高且均匀度破坏'
+    owner_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    notes:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本，每次更新递增。
+    voided_at:
+      anyOf:
+      - *id001
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.void_reason
+    voided_by_user_id:
+      anyOf:
+      - *id002
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.voided_by_user_id
+    archived_at:
+      anyOf:
+      - *id001
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.archived_at
+    archived_by_user_id:
+      anyOf:
+      - *id002
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.archived_by_user_id
+SampleDetail:
+  allOf:
+  - $ref: '#/Sample'
+  - type: object
+    description: 样品详情（含关联统计与层级）
+    properties:
+      batch:
+        $ref: '#/Batch'
+      parent_sample:
+        $ref: '#/SampleBrief'
+      child_samples:
+        type: array
+        items:
+          $ref: '#/SampleBrief'
+      measurement_count:
+        type: integer
+        description: 当前有效测量数
+        examples:
+        - 3
+      point_count_total:
+        type: integer
+        description: 点级数据总数
+        examples:
+        - 12
+      first_measured_at:
+        type:
+        - string
+        - 'null'
+        format: date-time
+      last_measured_at:
+        type:
+        - string
+        - 'null'
+        format: date-time
+      experiments:
+        type: array
+        description: 该样品参加过的可见执行，按实际执行时间排序。
+        items:
+          $ref: '#/SampleExperiment'
+      participation_summary:
+        $ref: '#/ParticipationSummary'
+      research_review:
+        type: object
+        description: 只读测量历史与明确配对的椭偏表观结果，未知原因显式返回；不推断循环数。
+        additionalProperties: true
+SampleBrief:
+  type: object
+  description: 样品简要信息（用于嵌套展示）
+  required:
+  - sample_id
+  - sample_code
+  properties:
+    sample_id:
+      type: integer
+      format: int64
+    sample_code:
+      type: string
+    batch_code:
+      type:
+      - string
+      - 'null'
+    sample_type:
+      $ref: '#/SampleType'
+    status:
+      $ref: '#/SampleStatus'
+    exclude_from_analysis:
+      type: boolean
+SampleCreate:
+  type: object
+  required:
+  - sample_code
+  - batch_id
+  properties:
+    sample_code:
+      type: string
+      maxLength: 64
+      description: 全局唯一，格式建议 `批次前缀-Sxx`
+    batch_id:
+      type: integer
+      format: int64
+    parent_sample_id:
+      type: integer
+      format: int64
+    sample_type:
+      $ref: '#/SampleType'
+    display_label:
+      type: string
+    nominal_thickness_nm:
+      type: string
+      x-db-type: decimal(12,3)
+    size_desc:
+      type: string
+    cut_position:
+      type: string
+    surface_state:
+      type: string
+    pre_treatment:
+      type: string
+    status:
+      $ref: '#/SampleStatus'
+    exclude_from_analysis:
+      type: boolean
+      default: false
+    exclude_reason:
+      type: string
+    notes:
+      type: string
+SampleUpdate:
+  type: object
+  properties:
+    sample_code:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 用户可见样品编号；全局唯一。修改不改变 sample_id，历史测量、执行与流转关联保持有效。
+    display_label:
+      type:
+      - string
+      - 'null'
+    nominal_thickness_nm:
+      type:
+      - string
+      - 'null'
+    size_desc:
+      type:
+      - string
+      - 'null'
+    cut_position:
+      type:
+      - string
+      - 'null'
+    surface_state:
+      type:
+      - string
+      - 'null'
+    pre_treatment:
+      type:
+      - string
+      - 'null'
+    status:
+      $ref: '#/SampleStatus'
+    exclude_from_analysis:
+      type: boolean
+    exclude_reason:
+      type:
+      - string
+      - 'null'
+    notes:
+      type:
+      - string
+      - 'null'
+    expected_row_version:
+      type: integer
+      minimum: 1
+      description: 可选；提供时必须匹配当前 row_version，否则返回 409。省略时保持原有更新行为。
+PlanStatus:
+  type: string
+  enum:
+  - draft
+  - approved
+  - running
+  - completed
+  - abandoned
+  - archived
+PlanPriority:
+  type: string
+  enum:
+  - high
+  - normal
+  - low
+ExperimentPlan:
+  type: object
+  description: 实验计划。位于实验执行之前，一个计划可派生多个执行。
+  required:
+  - plan_id
+  - plan_code
+  - title
+  - priority
+  - status
+  - created_at
+  - row_version
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  - archive_previous_status
+  properties:
+    plan_id:
+      type: integer
+      format: int64
+      readOnly: true
+    plan_code:
+      type: string
+      maxLength: 64
+      examples:
+      - PLAN-2026-10-14-HFTMA-SERIES
+    title:
+      type: string
+      maxLength: 255
+    objective:
+      type:
+      - string
+      - 'null'
+      description: 实验目的
+    hypothesis:
+      type:
+      - string
+      - 'null'
+      description: 待验证假设
+    design_note:
+      type:
+      - string
+      - 'null'
+      description: 变量设计与对照组设置
+    planned_start:
+      type:
+      - string
+      - 'null'
+      format: date
+    planned_end:
+      type:
+      - string
+      - 'null'
+      format: date
+    priority:
+      $ref: '#/PlanPriority'
+    status:
+      $ref: '#/PlanStatus'
+    owner_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    batch_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    notes:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本；更新父记录或其子记录时递增。子记录自身没有 row_version。
+    process_flow:
+      anyOf:
+      - $ref: '#/components/schemas/ProcessFlow'
+      - type: 'null'
+      x-db-column: experiment_plans.process_flow
+      description: 保存后step_id为真实数据库ID；空值表示旧记录无布局。
+    voided_at:
+      anyOf:
+      - *id001
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.void_reason
+    voided_by_user_id:
+      anyOf:
+      - *id002
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.voided_by_user_id
+    archive_previous_status:
+      anyOf:
+      - type: string
+        maxLength: 24
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.archive_previous_status
+ExperimentPlanDetail:
+  allOf:
+  - $ref: '#/ExperimentPlan'
+  - type: object
+    properties:
+      owner:
+        anyOf:
+        - $ref: '#/UserBrief'
+        - type: 'null'
+      batch:
+        anyOf:
+        - $ref: '#/Batch'
+        - type: 'null'
+      processes:
+        type: array
+        description: 该计划派生的可见执行及逐片科研结果
+        items:
+          $ref: '#/ProcessDetail'
+      process_count:
+        type: integer
+      steps:
+        type: array
+        items:
+          $ref: '#/PlanStep'
+    required:
+    - owner
+    - batch
+    - steps
+    - processes
+    - process_count
+ExperimentPlanCreate:
+  additionalProperties: false
+  properties:
+    plan_code:
+      maxLength: 64
+      minLength: 1
+      type: string
+    title:
+      maxLength: 255
+      minLength: 1
+      type: string
+    objective:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    hypothesis:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    design_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    planned_start:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+    planned_end:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+    priority:
+      default: normal
+      enum:
+      - high
+      - normal
+      - low
+      type: string
+    status:
+      default: draft
+      enum:
+      - draft
+      - approved
+      - running
+      - completed
+      - abandoned
+      type: string
+    batch_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+  required:
+  - plan_code
+  - title
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+ExperimentPlanUpdate:
+  additionalProperties: false
+  properties:
+    title:
+      maxLength: 255
+      minLength: 1
+      type: string
+    objective:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    hypothesis:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    design_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    planned_start:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+    planned_end:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+    priority:
+      enum:
+      - high
+      - normal
+      - low
+      type: string
+    status:
+      enum:
+      - draft
+      - approved
+      - running
+      - completed
+      - abandoned
+      type: string
+    batch_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    expected_row_version:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      default: null
+      description: 可选且可为 null；非 null 时匹配父计划/运行 row_version，否则 409。修改子记录也递增父 row_version。
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+ToolType:
+  type: string
+  enum:
+  - ellipsometer
+  - thermal_ale
+  - xps
+  - rga
+  - xrr
+  - afm
+  - sem
+  - other
+ToolStatus:
+  type: string
+  enum:
+  - active
+  - maintenance
+  - retired
+Tool:
+  type: object
+  required:
+  - tool_id
+  - tool_code
+  - tool_name
+  - tool_type
+  - status
+  properties:
+    tool_id:
+      type: integer
+      format: int64
+    tool_code:
+      type: string
+      maxLength: 64
+      examples:
+      - THERMAL_ALE_01
+    tool_name:
+      type: string
+      maxLength: 255
+      examples:
+      - 自制热ALE腔体
+    tool_type:
+      $ref: '#/ToolType'
+    vendor:
+      type:
+      - string
+      - 'null'
+      examples:
+      - Eoptics
+    model:
+      type:
+      - string
+      - 'null'
+    location:
+      type:
+      - string
+      - 'null'
+    status:
+      $ref: '#/ToolStatus'
+    notes:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+RecipeKind:
+  type: string
+  enum:
+  - deposition
+  - o3
+  - hf
+  - tma
+  - plasma
+  - full_cycle
+  - purge
+RecipeStatus:
+  type: string
+  enum:
+  - active
+  - superseded
+  - obsolete
+Recipe:
+  type: object
+  description: '工艺配方（**标称定义**）。
+
+    实际运行参数存在 process_steps，二者分离——
+
+    因为 R1≈275℃ 是历史典型值，不能推定每次一致。
+
+    '
+  required:
+  - recipe_id
+  - recipe_code
+  - recipe_name
+  - recipe_kind
+  - version
+  - status
+  properties:
+    recipe_id:
+      type: integer
+      format: int64
+    recipe_code:
+      type: string
+      maxLength: 64
+      examples:
+      - RCP-O3-STD
+    recipe_name:
+      type: string
+      maxLength: 255
+      examples:
+      - 2026.9.1-SiN-30nm.rcp
+    recipe_kind:
+      $ref: '#/RecipeKind'
+    material:
+      type:
+      - string
+      - 'null'
+    nominal_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      description: 标称温度（℃），非实测
+      examples:
+      - '275.00'
+    nominal_pressure:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+    pressure_unit:
+      type:
+      - string
+      - 'null'
+      examples:
+      - kPa
+    nominal_gas_flows:
+      type:
+      - object
+      - 'null'
+      additionalProperties: true
+    pulse_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+    purge_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+    wait_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+    version:
+      type: string
+      maxLength: 32
+      examples:
+      - v1
+    status:
+      $ref: '#/RecipeStatus'
+    source_file_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    notes:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+OpticalModelStatus:
+  type: string
+  enum:
+  - active
+  - superseded
+  - experimental
+OpticalModel:
+  type: object
+  description: '椭偏光学模型（n/k 设定）。
+
+
+    **本表是结论可信度的前提。** 原始椭偏文件的 n/k 编码在
+
+    *文件名* 里而非内容里，且同一样品的初始态与处理后使用不同 n/k
+
+    （如 `1-n1.91-k0` 对比 `1-n1.9198-k0.0005`）。
+
+    不记录模型，"表观减薄"就是跨模型相减而不可知。
+
+    '
+  required:
+  - model_id
+  - model_code
+  - model_name
+  - status
+  properties:
+    model_id:
+      type: integer
+      format: int64
+    model_code:
+      type: string
+      maxLength: 64
+      examples:
+      - OM-SIN30-N1.9198-K0.0005
+    model_name:
+      type: string
+      maxLength: 255
+    rcp_name:
+      type:
+      - string
+      - 'null'
+      examples:
+      - 2026.9.1-SiN-30nm.rcp
+    spl_name:
+      type:
+      - string
+      - 'null'
+      examples:
+      - 8.31-30nm-SiN.spl
+    n_setting:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,6)
+      description: 折射率 n
+      examples:
+      - '1.919800'
+    k_setting:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,6)
+      description: 消光系数 k
+      examples:
+      - '0.000500'
+    layer_structure:
+      type:
+      - array
+      - 'null'
+      items:
+        type: object
+        additionalProperties: true
+    aoi_deg:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,3)
+      description: 入射角（度）
+      examples:
+      - '64.950'
+    valid_range_nm:
+      type:
+      - string
+      - 'null'
+      examples:
+      - 20-50nm
+    applicable_batch_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    quality_note:
+      type:
+      - string
+      - 'null'
+      description: 模型质量备注。如 ISS-03 记录的 300nm 模型 MSE 偏高。
+    status:
+      $ref: '#/OpticalModelStatus'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+ProcessMode:
+  type: string
+  enum:
+  - full_cycle
+  - pre_expose_then_react
+  - hf_only
+  - o3_only
+  - tma_only
+  - plasma
+  - deposition
+  - other
+  description: '工艺模式。**本字段强制隔离两类绝不可合并的实验**：
+
+
+    - `full_cycle`             逐循环完整 O3-HF-TMA（如 B05-S07）
+
+    - `pre_expose_then_react`  固定 O3 预暴露后再 HF-TMA（如 B05-S08）
+
+
+    二者端点数值接近但工艺含义完全不同，不可混为一组（EXP-09 vs EXP-10）。
+
+    '
+  examples:
+  - pre_expose_then_react
+ProcessLogStatus:
+  type: string
+  enum:
+  - ok
+  - partial
+  - aborted
+  - unknown
+ProcessStepKind:
+  type: string
+  minLength: 1
+  maxLength: 128
+  description: 自由步骤分类；0010 将计划/执行 step_kind 改为 VARCHAR(128)，无枚举 CHECK。
+Process:
+  type: object
+  description: 工艺运行（一次实际执行事件）。
+  required:
+  - process_id
+  - process_code
+  - process_mode
+  - is_independent_run
+  - log_status
+  - row_version
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  properties:
+    plan_title: {type: [string, 'null']}
+    plan_title: {type: [string, "null"]}
+    process_id:
+      type: integer
+      format: int64
+      readOnly: true
+    process_code:
+      type: string
+      maxLength: 64
+      examples:
+      - RUN-20261014-B05-PRE-HFTMA5
+    plan_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 所属实验计划（可为空，表示临时加做）
+    batch_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    process_mode:
+      $ref: '#/ProcessMode'
+    tool_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    chemistry_system_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 关联的通用化学体系（可为空）；删除被引用的体系返回 409。
+    r1_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      description: R1 实测温度（℃）。与配方标称值分开。
+    r2_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+    n2_flow_sccm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+    o3_pre_cycles:
+      type:
+      - integer
+      - 'null'
+      description: 'O3 预暴露**次数**。
+
+        ISS-07: 次数不等于已标定的分子剂量，且不可与秒数混淆
+
+        （源文件名中的 "10s" 实为 10 次）。
+
+        '
+      examples:
+      - 50
+    o3_pre_duration_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      description: 单次预暴露时长（秒）。与次数分开记录。
+    full_ale_cycles:
+      type:
+      - integer
+      - 'null'
+      examples:
+      - 50
+    hf_tma_repeats:
+      type:
+      - integer
+      - 'null'
+      examples:
+      - 5
+    started_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    ended_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    operator_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    co_etch_group:
+      type:
+      - string
+      - 'null'
+      maxLength: 64
+      description: '共腔分组标识。ISS-06: 共腔处理的样品与独立运行样品
+
+        不构成工艺独立重复，不可平均成单个工艺点。
+
+        '
+      examples:
+      - COETCH-B28-S04S06
+    is_independent_run:
+      type: boolean
+      description: 是否独立运行（false 表示与其他样品共腔）
+      examples:
+      - false
+    log_status:
+      $ref: '#/ProcessLogStatus'
+    notes:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本；更新父记录或其子记录时递增。子记录自身没有 row_version。
+    archived_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+      readOnly: true
+      x-db-column: processes.archived_at
+      description: 独立归档时间；null 表示未归档，不改原有科学状态。
+    process_flow:
+      anyOf:
+      - $ref: '#/components/schemas/ProcessFlow'
+      - type: 'null'
+      x-db-column: processes.process_flow
+      description: 保存后step_id为真实数据库ID；空值表示旧记录无布局。
+    voided_at:
+      anyOf:
+      - *id001
+      - type: 'null'
+      readOnly: true
+      x-db-column: processes.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: processes.void_reason
+    voided_by_user_id:
+      anyOf:
+      - *id002
+      - type: 'null'
+      readOnly: true
+      x-db-column: processes.voided_by_user_id
+ProcessBrief:
+  type: object
+  required:
+  - process_id
+  - process_code
+  - process_mode
+  properties:
+    process_id:
+      type: integer
+      format: int64
+    process_code:
+      type: string
+    process_mode:
+      $ref: '#/ProcessMode'
+    started_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    log_status:
+      $ref: '#/ProcessLogStatus'
+ProcessDetail:
+  allOf:
+  - $ref: '#/Process'
+  - type: object
+    properties:
+      plan:
+        anyOf:
+        - $ref: '#/ExperimentPlan'
+        - type: 'null'
+      batch:
+        anyOf:
+        - $ref: '#/Batch'
+        - type: 'null'
+      tool:
+        anyOf:
+        - $ref: '#/Tool'
+        - type: 'null'
+      steps:
+        type: array
+        items:
+          $ref: '#/ProcessStep'
+      samples:
+        type: array
+        description: 参与该次运行的样品（含逐片参数与共腔位置）
+        items:
+          $ref: '#/ProcessSampleLink'
+      sample_count:
+        type: integer
+      step_count:
+        type: integer
+    required:
+    - plan
+    - batch
+    - tool
+    - steps
+    - samples
+    - sample_count
+    - step_count
+ProcessStep:
+  type: object
+  description: '工艺步骤。记录**实际运行参数**。
+
+    未知值保持 null 而非用配方标称值填充——
+
+    null 本身表示"未记录"，用标称值填充会制造虚假确定性。
+
+    '
+  required:
+  - step_id
+  - process_id
+  - step_index
+  - step_kind
+  - parameter_source
+  - legacy_parameters
+  - legacy_parameters_status
+  - parameter_conflict
+  properties:
+    step_id:
+      type: integer
+      format: int64
+      readOnly: true
+    process_id:
+      type: integer
+      format: int64
+    step_index:
+      maximum: 4294967295
+      minimum: 1
+      type: integer
+    step_kind:
+      $ref: '#/components/schemas/ProcessStepKind'
+      x-db-column: process_steps.step_kind
+    chemistry:
+      type:
+      - string
+      - 'null'
+      examples:
+      - O3
+    recipe_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 所依据的配方（标称）
+    cycles:
+      type:
+      - integer
+      - 'null'
+    cumulative_cycles:
+      type:
+      - integer
+      - 'null'
+    duration_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+    pulse_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+    purge_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+    wait_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+    actual_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+    delta_p:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+    delta_p_unit:
+      type:
+      - string
+      - 'null'
+      enum:
+      - kPa
+      - Pa
+      - mTorr
+      - null
+    o3_delta_p_kpa:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      description: O3 脉冲 ΔP（历史典型约 5kPa）。经验压力增量代理量，非积分化学剂量。
+      examples:
+      - '5.0000'
+    hf_delta_p_pa:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      description: HF 脉冲 ΔP（历史典型约 80Pa）
+    tma_delta_p_pa:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      description: TMA 脉冲 ΔP（历史典型约 110Pa）
+    o3_generator_o2_flow_set_sccm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      description: 'O3 发生器 O2 供气**设定**流量（sccm）。
+
+        **ISS-01: 严禁与 O2 plasma 的 30 sccm 混淆。**
+
+        '
+    o3_generator_o2_flow_measured_sccm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      description: O3 发生器 O2 **实测**流量。常为 null（未记录）。
+    o3_concentration:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,6)
+      description: O3 浓度。常为 null。
+    o2_plasma_w:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      description: O2 plasma 功率（30W）
+    o2_plasma_sccm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      description: O2 plasma 流量（30 sccm）。**此为 plasma 支路，与 O3 发生器流量无关。**
+    o2_plasma_pa:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      description: O2 plasma 腔压（80Pa）
+    step_note:
+      type:
+      - string
+      - 'null'
+    step_name:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+      description: 自定义步骤名（如“O3 暴露”）；步骤类型仍由 step_kind 表达。
+    custom_parameters:
+      anyOf:
+      - $ref: '#/CustomParameters'
+      - type: 'null'
+      default: null
+      description: '自由参数映射，按 {key: {value,unit,note}} 存储；数字取值统一按字符串回传。'
+    created_at:
+      type: string
+      format: date-time
+    plan_step_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    parameter_snapshot:
+      anyOf:
+      - $ref: '#/ParameterSnapshot'
+      - type: 'null'
+      default: null
+      x-db-column: process_steps.parameter_snapshot
+      description: 通用步骤参数 JSON 快照，保存值的副本；修改模板不回写历史记录。
+    parameter_source:
+      type: string
+      enum:
+      - parameter_snapshot
+      - legacy_fields
+      description: 当前参数来源；非空快照优先，旧字段保持原值。
+      readOnly: true
+      x-db-column: false
+    legacy_parameters:
+      type: object
+      additionalProperties: true
+      description: 原样返回已记录旧字段及custom_parameters；不推断单位或转换数值。
+      readOnly: true
+      x-db-column: false
+    legacy_parameters_status:
+      type: string
+      enum:
+      - historical_readonly
+      - current
+      description: 存在快照时旧值仅供历史读取，否则仍为当前参数。
+      readOnly: true
+      x-db-column: false
+    parameter_conflict:
+      type: boolean
+      description: 非空快照与非空旧参数同时存在；不表示已推断数值是否相等。
+      readOnly: true
+      x-db-column: false
+ProcessSampleLink:
+  type: object
+  description: '工艺运行与样品的关联。承载**共腔信息**与**逐片工艺参数**——
+
+    10/14 实验中同一批次每片的 HF-TMA 次数各不相同。
+
+    '
+  required:
+  - process_sample_id
+  - process_id
+  - sample_id
+  - is_control
+  properties:
+    chemistry_name: {type: [string, 'null']}
+    research_review: {type: object, additionalProperties: true, description: "本次执行的正式测量、明确前测和确定性表观结果；可用点计数不改原始均值。"}
+    cycle_groups: {type: array, items: {type: object, additionalProperties: true}}
+    cycles_confirmed: {type: boolean}
+    execution_evidence: {type: string, enum: [not_confirmed, voided, recorded_time, recorded_loading]}
+    process_sample_id:
+      type: integer
+      format: int64
+    process_id:
+      type: integer
+      format: int64
+    sample_id:
+      type: integer
+      format: int64
+    sample:
+      $ref: '#/Sample'
+      description: 列表和运行详情嵌入；创建/更新关联响应不含 sample。
+    chamber_position:
+      type:
+      - string
+      - 'null'
+      maxLength: 64
+      description: 腔体位置/装载位
+      examples:
+      - A
+    o3_pre_cycles:
+      type:
+      - integer
+      - 'null'
+      description: 本片在该次运行的 O3 预暴露次数（可逐片不同）
+    hf_tma_repeats:
+      type:
+      - integer
+      - 'null'
+    full_ale_cycles:
+      type:
+      - integer
+      - 'null'
+    is_control:
+      type: boolean
+      description: 是否为对照样（如 0 次 O3）
+      examples:
+      - true
+    sample_role_note:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+    batch:
+      $ref: '#/Batch'
+      description: 样品所属批次（响应投影）。
+    events:
+      type: array
+      description: 本次执行中该样品的流转事件，按 event_at、transition_id 排序。
+      items:
+        $ref: '#/ParticipationEvent'
+    load_event:
+      anyOf:
+      - $ref: '#/ParticipationEvent'
+      - type: 'null'
+    unload_event:
+      anyOf:
+      - $ref: '#/ParticipationEvent'
+      - type: 'null'
+    participation_status:
+      type: string
+      enum: [unloaded, loaded, not_recorded]
+      description: 依据已记录 load/unload 事件；没有事件时为 not_recorded，不推断。
+    measurements:
+      type: array
+      items:
+        $ref: '#/ParticipationMeasurement'
+    measurement_count:
+      type: integer
+    cumulative_recorded_cycles:
+      type: [integer, "null"]
+      description: 仅累计已确认参与的逐片循环；不同体系或体系未知的多次执行分组，跨组总数返回 null，不由设备循环推算。
+    cumulative_participations:
+      type: integer
+    cumulative_missing_participations:
+      type: integer
+    cumulative_complete:
+      type: boolean
+TransitionEventType:
+  type: string
+  enum:
+  - cut
+  - load
+  - unload
+  - measure
+  - process
+  - quarantine
+  - dispose
+  - receive
+  description: '流转事件类型。
+
+    - `cut` 切割 / `load` 装入 / `unload` 取出 / `measure` 测量
+
+    - `process` 工艺 / `quarantine` 隔离 / `dispose` 废弃 / `receive` 接收
+
+    '
+SampleTransition:
+  type: object
+  description: 只追加历史；按 transition_id 升序（追加顺序）分页，event_at 可为 null 或回填，不能用其推断占用顺序。
+  required:
+  - transition_id
+  - sample_id
+  - to_status
+  - event_type
+  - created_at
+  - context_redacted
+  properties:
+    context_redacted:
+      type: boolean
+      readOnly: true
+      description: 必需字段。关联运行不可见时为 true，process_id、step_id、operator_user_id、location、note、measurement_id 均为 null；保留样品状态轨迹，不代表无关联执行。
+    transition_id:
+      type: integer
+      format: int64
+    sample_id:
+      type: integer
+      format: int64
+    sample:
+      $ref: '#/SampleBrief'
+    from_status:
+      anyOf:
+      - $ref: '#/SampleStatus'
+      - type: 'null'
+    to_status:
+      $ref: '#/SampleStatus'
+    event_type:
+      $ref: '#/TransitionEventType'
+    process_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    measurement_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    event_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    operator_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    location:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+    note:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+    step_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 实际步骤完成之后的边界；须属于所提供 process_id。load 表示该步骤之后装入，unload 表示该步骤之后取出。null 表示未指定步骤边界。
+SampleTransitionCreate:
+  additionalProperties: false
+  properties:
+    to_status:
+      enum:
+      - available
+      - in_process
+      - consumed
+      - lost
+      - quarantined
+      type: string
+    event_type:
+      enum:
+      - cut
+      - load
+      - unload
+      - measure
+      - process
+      - quarantine
+      - dispose
+      - receive
+      type: string
+    expected_row_version:
+      exclusiveMinimum: 0
+      type: integer
+    process_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    step_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      description: 实际步骤完成之后的边界；须属于所提供 process_id。load 表示该步骤之后装入，unload 表示该步骤之后取出。null 表示未指定步骤边界。
+    measurement_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    event_at:
+      anyOf:
+      - format: date-time
+        type: string
+      - type: 'null'
+      default: null
+    location:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+    note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+  required:
+  - to_status
+  - event_type
+  - expected_row_version
+  type: object
+  description: 追加流转；expected_row_version 必填，匹配样品 row_version；from_status、operator_user_id 与 ID 由服务端确定。
+PlanCreate:
+  additionalProperties: false
+  properties:
+    plan_code:
+      maxLength: 64
+      minLength: 1
+      type: string
+    title:
+      maxLength: 255
+      minLength: 1
+      type: string
+    objective:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    hypothesis:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    design_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    planned_start:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+    planned_end:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+    priority:
+      default: normal
+      enum:
+      - high
+      - normal
+      - low
+      type: string
+    status:
+      default: draft
+      enum:
+      - draft
+      - approved
+      - running
+      - completed
+      - abandoned
+      type: string
+    batch_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+  required:
+  - plan_code
+  - title
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+PlanUpdate:
+  additionalProperties: false
+  properties:
+    title:
+      maxLength: 255
+      minLength: 1
+      type: string
+    objective:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    hypothesis:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    design_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    planned_start:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+    planned_end:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+    priority:
+      enum:
+      - high
+      - normal
+      - low
+      type: string
+    status:
+      enum:
+      - draft
+      - approved
+      - running
+      - completed
+      - abandoned
+      type: string
+    batch_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    expected_row_version:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      default: null
+      description: 可选且可为 null；非 null 时匹配父计划/运行 row_version，否则 409。修改子记录也递增父 row_version。
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+StepParameters:
+  additionalProperties: false
+  properties:
+    chemistry:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    recipe_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    cumulative_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    duration_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    pulse_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    purge_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    wait_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    actual_temp_c:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,2})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    delta_p:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    delta_p_unit:
+      anyOf:
+      - enum:
+        - kPa
+        - Pa
+        - mTorr
+        type: string
+      - type: 'null'
+      default: null
+    o3_delta_p_kpa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    hf_delta_p_pa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    tma_delta_p_pa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_generator_o2_flow_set_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_generator_o2_flow_measured_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_concentration:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,6)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,6})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o2_plasma_w:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o2_plasma_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o2_plasma_pa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+  type: object
+  description: 计划参数白名单，与实际步骤参数字段相同；额外键返回 422。计划值不自动写入实际观测。
+PlanStepCreate:
+  additionalProperties: false
+  properties:
+    step_index:
+      maximum: 4294967295
+      minimum: 1
+      type: integer
+    step_kind:
+      $ref: '#/components/schemas/ProcessStepKind'
+      x-db-column: experiment_plan_steps.step_kind
+    planned_parameters:
+      anyOf:
+      - $ref: '#/StepParameters'
+      - type: 'null'
+      default: null
+    step_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    step_name:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+      description: 自定义步骤名（可空）。
+    custom_parameters:
+      anyOf:
+      - $ref: '#/CustomParameters'
+      - type: 'null'
+      default: null
+      description: 自由参数映射，最多 32 项。
+    parameter_snapshot:
+      anyOf:
+      - $ref: '#/ParameterSnapshot'
+      - type: 'null'
+      default: null
+      x-db-column: experiment_plan_steps.parameter_snapshot
+      description: 通用步骤参数 JSON 快照，保存值的副本；修改模板不回写历史记录。
+  required:
+  - step_index
+  - step_kind
+  type: object
+  description: 计划步骤创建；客户端必须提供 step_index 和 step_kind，不接受服务端 step_id/plan_id。
+PlanStepUpdate:
+  additionalProperties: false
+  properties:
+    step_index:
+      maximum: 4294967295
+      minimum: 1
+      type: integer
+    step_kind:
+      $ref: '#/components/schemas/ProcessStepKind'
+      x-db-column: experiment_plan_steps.step_kind
+    planned_parameters:
+      anyOf:
+      - $ref: '#/StepParameters'
+      - type: 'null'
+      default: null
+    step_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    step_name:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+      description: 自定义步骤名（可空）。
+    custom_parameters:
+      anyOf:
+      - $ref: '#/CustomParameters'
+      - type: 'null'
+      default: null
+      description: 自由参数映射，最多 32 项。
+    expected_row_version:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      default: null
+      description: 可选且可为 null；非 null 时匹配父计划/运行 row_version，否则 409。修改子记录也递增父 row_version。
+    parameter_snapshot:
+      anyOf:
+      - $ref: '#/ParameterSnapshot'
+      - type: 'null'
+      default: null
+      x-db-column: experiment_plan_steps.parameter_snapshot
+      description: 通用步骤参数 JSON 快照，保存值的副本；修改模板不回写历史记录。
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+ProcessCreate:
+  additionalProperties: false
+  properties:
+    process_code:
+      maxLength: 64
+      minLength: 1
+      type: string
+    process_mode:
+      enum:
+      - full_cycle
+      - pre_expose_then_react
+      - hf_only
+      - o3_only
+      - tma_only
+      - plasma
+      - deposition
+      - other
+      type: string
+    plan_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    batch_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    tool_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    chemistry_system_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      description: 关联的通用化学体系（可空）；校验存在且可见。
+    r1_temp_c:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,2})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    r2_temp_c:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,2})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    n2_flow_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_pre_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    o3_pre_duration_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    full_ale_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    hf_tma_repeats:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    started_at:
+      anyOf:
+      - format: date-time
+        type: string
+      - type: 'null'
+      default: null
+    ended_at:
+      anyOf:
+      - format: date-time
+        type: string
+      - type: 'null'
+      default: null
+    co_etch_group:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    is_independent_run:
+      default: true
+      type: boolean
+    log_status:
+      default: ok
+      enum:
+      - ok
+      - partial
+      - aborted
+      - unknown
+      type: string
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    steps:
+      items:
+        $ref: '#/ProcessStepCreate'
+      maxItems: 500
+      type: array
+    samples:
+      items:
+        $ref: '#/ProcessSampleCreate'
+      maxItems: 500
+      type: array
+    process_flow:
+      anyOf:
+      - $ref: '#/components/schemas/ProcessFlow'
+      - type: 'null'
+      default: null
+      x-db-column: processes.process_flow
+      description: 创建流程只接受与提交steps的step_index一致的整数引用；保存后解析为实际step_id。
+  required:
+  - process_code
+  - process_mode
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+ProcessUpdate:
+  additionalProperties: false
+  properties:
+    process_code:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 可修改业务编号；内部 process_id 与历史引用保持，修改留审计。
+    process_mode:
+      enum:
+      - full_cycle
+      - pre_expose_then_react
+      - hf_only
+      - o3_only
+      - tma_only
+      - plasma
+      - deposition
+      - other
+      type: string
+    plan_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    batch_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    tool_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    chemistry_system_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      description: 关联的通用化学体系（可空）；校验存在且可见。
+    r1_temp_c:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,2})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    r2_temp_c:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,2})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    n2_flow_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_pre_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    o3_pre_duration_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    full_ale_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    hf_tma_repeats:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    started_at:
+      anyOf:
+      - format: date-time
+        type: string
+      - type: 'null'
+      default: null
+    ended_at:
+      anyOf:
+      - format: date-time
+        type: string
+      - type: 'null'
+      default: null
+    co_etch_group:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    is_independent_run:
+      type: boolean
+    log_status:
+      enum:
+      - ok
+      - partial
+      - aborted
+      - unknown
+      type: string
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    expected_row_version:
+      exclusiveMinimum: 0
+      type: integer
+      description: 可选且可为 null；非 null 时匹配父计划/运行 row_version，否则 409。修改子记录也递增父 row_version。
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+ProcessStepCreate:
+  additionalProperties: false
+  properties:
+    chemistry:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    recipe_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    cumulative_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    duration_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    pulse_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    purge_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    wait_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    actual_temp_c:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,2})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    delta_p:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    delta_p_unit:
+      anyOf:
+      - enum:
+        - kPa
+        - Pa
+        - mTorr
+        type: string
+      - type: 'null'
+      default: null
+    o3_delta_p_kpa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    hf_delta_p_pa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    tma_delta_p_pa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_generator_o2_flow_set_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_generator_o2_flow_measured_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_concentration:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,6)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,6})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o2_plasma_w:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o2_plasma_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o2_plasma_pa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    step_index:
+      maximum: 4294967295
+      minimum: 1
+      type: integer
+    step_kind:
+      $ref: '#/components/schemas/ProcessStepKind'
+      x-db-column: process_steps.step_kind
+    plan_step_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    step_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    step_name:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+      description: 自定义步骤名（可空）。
+    custom_parameters:
+      anyOf:
+      - $ref: '#/CustomParameters'
+      - type: 'null'
+      default: null
+      description: 自由参数映射，最多 32 项。
+    parameter_snapshot:
+      anyOf:
+      - $ref: '#/ParameterSnapshot'
+      - type: 'null'
+      default: null
+      x-db-column: process_steps.parameter_snapshot
+      description: 通用步骤参数 JSON 快照，保存值的副本；修改模板不回写历史记录。
+  required:
+  - step_index
+  - step_kind
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+ProcessStepUpdate:
+  additionalProperties: false
+  properties:
+    chemistry:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    recipe_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    cumulative_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    duration_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    pulse_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    purge_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    wait_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    actual_temp_c:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,2})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    delta_p:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    delta_p_unit:
+      anyOf:
+      - enum:
+        - kPa
+        - Pa
+        - mTorr
+        type: string
+      - type: 'null'
+      default: null
+    o3_delta_p_kpa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    hf_delta_p_pa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    tma_delta_p_pa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_generator_o2_flow_set_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_generator_o2_flow_measured_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o3_concentration:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,6)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,6})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o2_plasma_w:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o2_plasma_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    o2_plasma_pa:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,4)
+      pattern: ^-?0*\d{1,8}(?:\.\d{1,4})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+    step_index:
+      maximum: 4294967295
+      minimum: 1
+      type: integer
+    step_kind:
+      $ref: '#/components/schemas/ProcessStepKind'
+      x-db-column: process_steps.step_kind
+    plan_step_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    step_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    step_name:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+      description: 自定义步骤名（可空）。
+    custom_parameters:
+      anyOf:
+      - $ref: '#/CustomParameters'
+      - type: 'null'
+      default: null
+      description: 自由参数映射，最多 32 项。
+    expected_row_version:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      default: null
+      description: 可选且可为 null；非 null 时匹配父计划/运行 row_version，否则 409。修改子记录也递增父 row_version。
+    parameter_snapshot:
+      anyOf:
+      - $ref: '#/ParameterSnapshot'
+      - type: 'null'
+      default: null
+      x-db-column: process_steps.parameter_snapshot
+      description: 通用步骤参数 JSON 快照，保存值的副本；修改模板不回写历史记录。
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+ProcessSampleCreate:
+  additionalProperties: false
+  properties:
+    sample_id:
+      exclusiveMinimum: 0
+      type: integer
+    chamber_position:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    o3_pre_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    hf_tma_repeats:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    full_ale_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    is_control:
+      default: false
+      type: boolean
+    sample_role_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+  required:
+  - sample_id
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+ProcessSampleUpdate:
+  additionalProperties: false
+  properties:
+    chamber_position:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    o3_pre_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    hf_tma_repeats:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    full_ale_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    is_control:
+      type: boolean
+    sample_role_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    expected_row_version:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      default: null
+      description: 可选且可为 null；非 null 时匹配父计划/运行 row_version，否则 409。修改子记录也递增父 row_version。
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+TransitionCreate:
+  additionalProperties: false
+  properties:
+    to_status:
+      enum:
+      - available
+      - in_process
+      - consumed
+      - lost
+      - quarantined
+      type: string
+    event_type:
+      enum:
+      - cut
+      - load
+      - unload
+      - measure
+      - process
+      - quarantine
+      - dispose
+      - receive
+      type: string
+    expected_row_version:
+      exclusiveMinimum: 0
+      type: integer
+    process_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    step_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      description: 实际步骤完成之后的边界；须属于所提供 process_id。load 表示该步骤之后装入，unload 表示该步骤之后取出。null 表示未指定步骤边界。
+    measurement_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    event_at:
+      anyOf:
+      - format: date-time
+        type: string
+      - type: 'null'
+      default: null
+    location:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+    note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+  required:
+  - to_status
+  - event_type
+  - expected_row_version
+  type: object
+  description: 追加流转；expected_row_version 必填，匹配样品 row_version；from_status、operator_user_id 与 ID 由服务端确定。
+PlanStep:
+  type: object
+  description: 有序计划步骤；step_id 由服务端生成。被实际步骤映射后，更新或删除均返回 409。
+  required:
+  - step_id
+  - plan_id
+  - step_index
+  - step_kind
+  - created_at
+  - parameter_source
+  - legacy_parameters
+  - legacy_parameters_status
+  - parameter_conflict
+  properties:
+    step_id:
+      type: integer
+      format: int64
+      readOnly: true
+    plan_id:
+      type: integer
+      format: int64
+      readOnly: true
+    step_index:
+      maximum: 4294967295
+      minimum: 1
+      type: integer
+    step_kind:
+      $ref: '#/components/schemas/ProcessStepKind'
+      x-db-column: experiment_plan_steps.step_kind
+    planned_parameters:
+      anyOf:
+      - $ref: '#/StepParameters'
+      - type: 'null'
+      default: null
+    step_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    step_name:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+      description: 自定义步骤名（如“O3 暴露”）；步骤类型仍由 step_kind 表达。
+    custom_parameters:
+      anyOf:
+      - $ref: '#/CustomParameters'
+      - type: 'null'
+      default: null
+      description: '自由参数映射，按 {key: {value,unit,note}} 存储；数字取值统一按字符串回传。'
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+    parameter_snapshot:
+      anyOf:
+      - $ref: '#/ParameterSnapshot'
+      - type: 'null'
+      default: null
+      x-db-column: experiment_plan_steps.parameter_snapshot
+      description: 通用步骤参数 JSON 快照，保存值的副本；修改模板不回写历史记录。
+    parameter_source:
+      type: string
+      enum:
+      - parameter_snapshot
+      - legacy_fields
+      description: 当前参数来源；非空快照优先，旧字段保持原值。
+      readOnly: true
+      x-db-column: false
+    legacy_parameters:
+      type: object
+      additionalProperties: true
+      description: 原样返回已记录旧字段及custom_parameters；不推断单位或转换数值。
+      readOnly: true
+      x-db-column: false
+    legacy_parameters_status:
+      type: string
+      enum:
+      - historical_readonly
+      - current
+      description: 存在快照时旧值仅供历史读取，否则仍为当前参数。
+      readOnly: true
+      x-db-column: false
+    parameter_conflict:
+      type: boolean
+      description: 非空快照与非空旧参数同时存在；不表示已推断数值是否相等。
+      readOnly: true
+      x-db-column: false
+CustomParameter:
+  type: object
+  additionalProperties: false
+  description: 单个自定义参数项；value 为数字时统一按字符串存储与回传。
+  properties:
+    value:
+      anyOf:
+      - type: string
+      - type: number
+      - type: 'null'
+      default: null
+    unit:
+      anyOf:
+      - maxLength: 24
+        type: string
+      - type: 'null'
+      default: null
+    note:
+      anyOf:
+      - maxLength: 255
+        type: string
+      - type: 'null'
+      default: null
+CustomParameters:
+  type: object
+  maxProperties: 32
+  propertyNames:
+    pattern: ^[A-Za-z0-9_]{1,64}$
+  additionalProperties:
+    $ref: '#/CustomParameter'
+  description: 自定义参数映射；最多 32 项，键为 1–64 位字母数字下划线。
+BatchItem:
+  type: object
+  additionalProperties: false
+  description: 批量创建样品中的单个样品；批次来自路径，不在请求体中。
+  required:
+  - sample_code
+  properties:
+    sample_code:
+      type: string
+      minLength: 1
+      maxLength: 64
+    sample_type:
+      $ref: '#/SampleType'
+    display_label:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+    nominal_thickness_nm:
+      anyOf:
+      - type: string
+        x-db-type: decimal(12,3)
+      - type: 'null'
+      default: null
+    size_desc:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    cut_position:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+    surface_state:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+    pre_treatment:
+      anyOf:
+      - maxLength: 255
+        type: string
+      - type: 'null'
+      default: null
+    status:
+      $ref: '#/SampleStatus'
+    exclude_from_analysis:
+      type: boolean
+      default: false
+    exclude_reason:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+BatchSampleCreate:
+  type: object
+  additionalProperties: false
+  description: 在一个批次下原子创建 1–50 个样品；sample_code 必填且全局唯一，重复或校验失败整批回滚。
+  required:
+  - items
+  properties:
+    request_key:
+      type: [string, 'null']
+      minLength: 16
+      maxLength: 64
+      description: 可选创建意图键；相同键与内容重试返回原样品，修改内容则冲突。
+    parent_sample_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      description: 可选；必须属于该批次且为母片/整片。
+    items:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items:
+        $ref: '#/BatchItem'
+BatchLinkCreate:
+  type: object
+  additionalProperties: false
+  description: 一次绑定 1–50 个样品到同一执行；公共附加字段对每条相同。
+  required:
+  - sample_ids
+  properties:
+    sample_ids:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items:
+        exclusiveMinimum: 0
+        type: integer
+    chamber_position:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    o3_pre_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    hf_tma_repeats:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    full_ale_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+    is_control:
+      type: boolean
+      default: false
+    sample_role_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+PlanArchive:
+  type: object
+  additionalProperties: false
+  description: 计划归档请求；expected_row_version 可选，不匹配返回 409；已归档幂等返回当前详情。
+  properties:
+    expected_row_version:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      default: null
+RecordArchive:
+  additionalProperties: false
+  properties:
+    expected_row_version:
+      minimum: 1
+      type: integer
+      x-python-strict: true
+  required:
+  - expected_row_version
+  type: object
+SampleVoid:
+  additionalProperties: false
+  properties:
+    expected_row_version:
+      minimum: 1
+      title: Expected Row Version
+      type: integer
+      x-python-strict: true
+    reason:
+      maxLength: 2000
+      minLength: 1
+      title: Reason
+      type: string
+  required:
+  - expected_row_version
+  - reason
+  title: SampleVoid
+  type: object
+  x-python-methods: []
+  x-nonblank-fields:
+  - reason
+  x-python-strip-whitespace: true
+PlanGridDetail:
+  allOf:
+  - $ref: '#/components/schemas/ExperimentPlan'
+  - type: object
+    required:
+    - steps
+    - batch
+    - processes
+    - process_count
+    - owner
+    properties:
+      steps:
+        type: array
+        items:
+          $ref: '#/components/schemas/PlanStep'
+      batch:
+        anyOf:
+        - $ref: '#/components/schemas/Batch'
+        - type: 'null'
+      processes:
+        type: array
+        items:
+          $ref: '#/components/schemas/Process'
+      process_count: &id003
+        type: integer
+        minimum: 0
+        x-db-column: false
+      owner:
+        anyOf:
+        - type: object
+          additionalProperties: true
+        - type: 'null'
+ProcessGridDetail:
+  allOf:
+  - $ref: '#/components/schemas/Process'
+  - type: object
+    required:
+    - steps
+    - batch
+    - samples
+    - step_count
+    - sample_count
+    - plan
+    - tool
+    properties:
+      steps:
+        type: array
+        items:
+          $ref: '#/components/schemas/ProcessStep'
+      batch:
+        anyOf:
+        - $ref: '#/components/schemas/Batch'
+        - type: 'null'
+      samples:
+        type: array
+        items:
+          $ref: '#/components/schemas/ProcessSampleLink'
+      step_count: *id003
+      sample_count: *id003
+      plan:
+        anyOf:
+        - $ref: '#/components/schemas/ExperimentPlan'
+        - type: 'null'
+      tool:
+        anyOf:
+        - $ref: '#/components/schemas/Tool'
+        - type: 'null'
+
+ParticipationEvent:
+  type: object
+  required: [transition_id, event_type]
+  properties:
+    transition_id: {type: integer, format: int64}
+    event_type: {$ref: '#/TransitionEventType'}
+    from_status: {type: [string, 'null']}
+    to_status: {type: string}
+    process_id: {type: [integer, 'null'], format: int64}
+    step_id: {type: [integer, 'null'], format: int64}
+    step_index: {type: [integer, 'null']}
+    event_at: {type: [string, 'null'], format: date-time}
+    location: {type: [string, 'null']}
+    note: {type: [string, 'null']}
+ParticipationMeasurement:
+  type: object
+  required: [measurement_id, measurement_code, stage, is_current]
+  properties:
+    sample_code: {type: [string, "null"]}
+    process_code: {type: [string, "null"]}
+    plan_title: {type: [string, "null"]}
+    optical_model_name: {type: [string, "null"]}
+    measurement_id: {type: integer, format: int64}
+    measurement_code: {type: string}
+    stage: {type: string}
+    stage_seq: {type: [integer, 'null']}
+    cumulative_cycles: {type: [integer, 'null']}
+    measured_at: {type: [string, 'null'], format: date-time}
+    thickness_mean_nm: {type: [string, 'null']}
+    thickness_sd_nm: {type: [string, 'null']}
+    thickness_min_nm: {type: [string, 'null']}
+    thickness_max_nm: {type: [string, 'null']}
+    mse_mean: {type: [string, 'null']}
+    quality_flag: {type: string}
+    is_current: {type: boolean}
+    process_id: {type: [integer, 'null'], format: int64}
+ParticipationSummary:
+  type: object
+  required: [recorded_cycles, participation_count, recorded_participations, missing_participations, complete]
+  properties:
+    recorded_cycles: {type: [integer, "null"]}
+    cycle_groups: {type: array, items: {type: object, additionalProperties: true}}
+    participation_count: {type: integer}
+    recorded_participations: {type: integer}
+    missing_participations: {type: integer}
+    complete: {type: boolean}
+SampleExperiment:
+  type: object
+  required: [process_id, process_code, full_ale_cycles, cycles_recorded, participation_status, measurement_count]
+  properties:
+    process_sample_id: {type: integer, format: int64}
+    process_id: {type: integer, format: int64}
+    process_code: {type: string}
+    r1_temp_c: {type: [string, 'null']}
+    r2_temp_c: {type: [string, 'null']}
+    n2_flow_sccm: {type: [string, 'null']}
+    voided_at: {type: [string, 'null'], format: date-time}
+    process_mode: {type: string}
+    log_status: {type: string}
+    started_at: {type: [string, 'null'], format: date-time}
+    ended_at: {type: [string, 'null'], format: date-time}
+    plan_id: {type: [integer, 'null'], format: int64}
+    plan_code: {type: [string, 'null']}
+    plan_title: {type: [string, 'null']}
+    batch_id: {type: [integer, 'null'], format: int64}
+    chamber_position: {type: [string, 'null']}
+    o3_pre_cycles: {type: [integer, 'null']}
+    hf_tma_repeats: {type: [integer, 'null']}
+    full_ale_cycles: {type: [integer, 'null']}
+    cycles_recorded: {type: boolean}
+    cycles_confirmed: {type: boolean}
+    execution_evidence: {type: string, enum: [not_confirmed, voided, recorded_time, recorded_loading]}
+    steps: {type: array, items: {$ref: "#/ProcessStep"}}
+    is_control: {type: boolean}
+    sample_role_note: {type: [string, 'null']}
+    participation_status: {type: string, enum: [unloaded, loaded, not_recorded]}
+    events: {type: array, items: {$ref: '#/ParticipationEvent'}}
+    load_event: {anyOf: [{$ref: '#/ParticipationEvent'}, {type: 'null'}]}
+    unload_event: {anyOf: [{$ref: '#/ParticipationEvent'}, {type: 'null'}]}
+    measurements: {type: array, items: {$ref: '#/ParticipationMeasurement'}}
+    measurement_count: {type: integer}
+
+BatchCodeUpdate:
+  type: object
+  additionalProperties: false
+  required:
+  - batch_code
+  - expected_row_version
+  - reason
+  properties:
+    batch_code:
+      type: string
+      minLength: 1
+      maxLength: 64
+    expected_row_version:
+      type: integer
+      minimum: 1
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 2000
+BatchCodeStatus:
+  type: object
+  required:
+  - available
+  - message
+  properties:
+    available:
+      type: boolean
+    restricted:
+      type: boolean
+    namespace:
+      type: string
+    message:
+      type: string
+    existing:
+      type: object
+      description: 仅调用者可见时提供批次身份；私有冲突不返回此字段。
+    can_rename:
+      type: boolean
+    lifecycle:
+      type: object

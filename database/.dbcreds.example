@@ -1,0 +1,8 @@
+# MySQL 管理员凭据示例：复制为 database/.dbcreds 后填写真实值。
+# 仅用于建库脚本 database/apply_schema.py 与迁移脚本 database/migrate.py。
+# 该文件已被 .gitignore 排除，切勿提交。
+user=root
+password=你的MySQL_root密码
+# 可选：默认 127.0.0.1:3307
+# host=127.0.0.1
+# port=3307

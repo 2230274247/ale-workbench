@@ -1,0 +1,558 @@
+/api/v1/chemistry-systems:
+  get:
+    tags:
+    - 化学体系
+    summary: 化学体系列表
+    description: 登录用户可读。admin 全部可见；operator/viewer 仅自己拥有的体系（owner_user_id），无主体系仅 admin 可见；越权资源返回 404。默认 -created_at，keyword 搜索 system_code/system_name。排序白名单：system_id, system_code, system_name, status, created_at, updated_at。
+    operationId: listChemistrySystems
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/SortParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: status
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/SystemStatus
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/ChemistrySystem
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+  post:
+    tags:
+    - 化学体系
+    summary: 创建化学体系
+    description: admin/operator 可写，viewer 返回 403。owner_user_id 由服务端确定；system_code 全局唯一，重复返回 409。
+    operationId: createChemistrySystem
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ChemistrySystemCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ChemistrySystem
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+/api/v1/chemistry-systems/{id}:
+  get:
+    tags:
+    - 化学体系
+    summary: 化学体系详情
+    description: 登录用户可读，越权资源返回 404。响应内嵌 species[]、templates[] 与 owner。
+    operationId: getChemistrySystem
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ChemistrySystem
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: implemented
+  patch:
+    tags:
+    - 化学体系
+    summary: 更新化学体系
+    description: admin/operator 可写，viewer 返回 403；越权资源返回 404。expected_row_version 可选，非 null 时匹配体系 row_version，否则 409。
+    operationId: updateChemistrySystem
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ChemistrySystemUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ChemistrySystem
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+  delete:
+    tags:
+    - 化学体系
+    summary: 删除化学体系
+    description: 仅管理员可删除；越权资源返回 404。被执行（processes.chemistry_system_id）引用时返回 409，不级联删除。
+    operationId: deleteChemistrySystem
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/chemistry-systems/{id}/species:
+  post:
+    tags:
+    - 化学体系
+    summary: 新增体系物种
+    description: admin/operator 可写，viewer 返回 403；越权体系返回 404。species_code 在体系内唯一，重复返回 409。
+    operationId: createChemistrySpecies
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/SpeciesCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ChemistrySpecies
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+/api/v1/species/{id}:
+  patch:
+    tags:
+    - 化学体系
+    summary: 更新物种
+    description: admin/operator 可写，viewer 返回 403；越权资源返回 404。expected_row_version 可选，非 null 时匹配所属体系 row_version，否则 409。
+    operationId: updateChemistrySpecies
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/SpeciesUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ChemistrySpecies
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+  delete:
+    tags:
+    - 化学体系
+    summary: 删除物种
+    description: 仅管理员可删除；越权资源返回 404。模板参数以文本引用物种，删除不强制级联（无外键依赖）。
+    operationId: deleteChemistrySpecies
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/chemistry-systems/{id}/step-templates:
+  post:
+    tags:
+    - 化学体系
+    summary: 新增步骤模板
+    description: admin/operator 可写，viewer 返回 403；越权体系返回 404。template_code 在体系内唯一，重复返回 409；steps 至少 1 条。
+    operationId: createChemistryStepTemplate
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/TemplateCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ChemistryStepTemplate
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+/api/v1/step-templates/{id}:
+  patch:
+    tags:
+    - 化学体系
+    summary: 更新步骤模板
+    description: admin/operator 可写，viewer 返回 403；越权资源返回 404。expected_row_version 可选，非 null 时匹配所属体系 row_version，否则 409；steps 至少 1 条。
+    operationId: updateChemistryStepTemplate
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/TemplateUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ChemistryStepTemplate
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+  delete:
+    tags:
+    - 化学体系
+    summary: 删除步骤模板
+    description: 仅管理员可删除；越权资源返回 404。
+    operationId: deleteChemistryStepTemplate
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/step-parameter-templates:
+  get:
+    operationId: listStepParameterTemplates
+    tags:
+    - 步骤参数模板
+    summary: 分页查询通用步骤参数模板
+    description: admin 全部，其他角色仅本人 owner；按模板名称包含搜索。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/StepParameterTemplate
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+                required:
+                - data
+                - meta
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    parameters:
+    - name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    - name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+    - name: keyword
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+        default: ''
+  post:
+    operationId: createStepParameterTemplate
+    tags:
+    - 步骤参数模板
+    summary: 保存通用步骤参数模板
+    description: writer 创建，所有者由当前用户确定。
+    x-implementation-status: implemented
+    responses:
+      '201':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/StepParameterTemplate
+                required:
+                - data
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/StepParameterTemplateCreate
+/api/v1/step-parameter-templates/{id}:
+  get:
+    operationId: getStepParameterTemplate
+    tags:
+    - 步骤参数模板
+    summary: 读取模板
+    description: ''
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/StepParameterTemplate
+                required:
+                - data
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    parameters:
+    - &id001
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+  patch:
+    operationId: updateStepParameterTemplate
+    tags:
+    - 步骤参数模板
+    summary: 修改模板
+    description: writer 且模板可见；expected_row_version 必填且严格整数。允许仅提交版本（无修改），显式 null 的名称/definition 返回422。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/StepParameterTemplate
+                required:
+                - data
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    parameters:
+    - *id001
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/StepParameterTemplateUpdate
+  delete:
+    operationId: deleteStepParameterTemplate
+    tags:
+    - 步骤参数模板
+    summary: 删除模板
+    description: writer 且模板可见，版本必填；不改变已经复制进步骤的快照。
+    x-implementation-status: implemented
+    responses:
+      '204':
+        description: 删除成功，无响应体
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    parameters:
+    - *id001
+    - name: expected_row_version
+      in: query
+      required: true
+      schema:
+        type: integer
+        minimum: 1

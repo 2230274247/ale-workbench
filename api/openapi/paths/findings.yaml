@@ -1,0 +1,903 @@
+/api/v1/findings:
+  get:
+    tags:
+    - 结论台账
+    summary: 研究结论列表
+    description: '`evidence_level` 字段强制区分实测观察与机理假设。
+
+      可用 `evidence_level=hypothesis` 筛出尚未证实的结论。
+
+      '
+    operationId: listFindings
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/SortParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: evidence_level
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/EvidenceLevel
+    - name: is_confirmed
+      in: query
+      schema:
+        type: boolean
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Finding
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: planned
+  post:
+    tags:
+    - 结论台账
+    summary: 创建结论
+    operationId: createFinding
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/FindingCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Finding
+    x-implementation-status: planned
+/api/v1/findings/{id}:
+  get:
+    tags:
+    - 结论台账
+    summary: 结论详情
+    operationId: getFinding
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Finding
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: planned
+  patch:
+    tags:
+    - 结论台账
+    summary: 更新结论
+    operationId: updateFinding
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/FindingUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Finding
+    x-implementation-status: planned
+  delete:
+    tags:
+    - 结论台账
+    summary: 删除结论
+    operationId: deleteFinding
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+    x-implementation-status: planned
+/api/v1/issues:
+  get:
+    tags:
+    - 问题台账
+    summary: 问题列表
+    description: '对应交接文档 ISS-01 至 ISS-10。
+
+      可按 severity、status 筛选，或搜索 avoid 字段中的禁止误用条款。
+
+      '
+    operationId: listIssues
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/SortParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: severity
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/IssueSeverity
+    - name: status
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/IssueStatus
+    - name: has_avoid
+      in: query
+      description: 仅返回含"禁止误用"条款的问题
+      schema:
+        type: boolean
+    - name: entity_type
+      in: query
+      description: 按关联实体类型筛选
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/EntityType
+    - name: entity_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Issue
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: planned
+  post:
+    tags:
+    - 问题台账
+    summary: 创建问题
+    operationId: createIssue
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/IssueCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Issue
+    x-implementation-status: planned
+/api/v1/issues/{id}:
+  get:
+    tags:
+    - 问题台账
+    summary: 问题详情
+    description: 含关联实体列表。
+    operationId: getIssue
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/IssueDetail
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: planned
+  patch:
+    tags:
+    - 问题台账
+    summary: 更新问题
+    operationId: updateIssue
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/IssueUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Issue
+    x-implementation-status: planned
+  delete:
+    tags:
+    - 问题台账
+    summary: 删除问题
+    operationId: deleteIssue
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+    x-implementation-status: planned
+/api/v1/issues/{id}/links:
+  get:
+    tags:
+    - 问题台账
+    summary: 问题的关联实体
+    operationId: listIssueLinks
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/IssueLink
+    x-implementation-status: planned
+  post:
+    tags:
+    - 问题台账
+    summary: 关联实体到问题
+    operationId: createIssueLink
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/IssueLinkCreate
+    responses:
+      '201':
+        description: 已关联
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/IssueLink
+    x-implementation-status: planned
+/api/v1/issue-links/{id}:
+  delete:
+    tags:
+    - 问题台账
+    summary: 解除问题关联
+    operationId: deleteIssueLink
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已解除
+    x-implementation-status: planned
+/api/v1/instrument-datasets:
+  get:
+    operationId: listInstrumentDatasets
+    tags:
+    - 仪器数据
+    summary: listInstrumentDatasets
+    description: 只读；admin 全部，其余按可见样品或 operator_user_id 授权。include_datapoints=true 隐含 channels；默认不展开；不返回联表 sample/process/tool 或 channel_count。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/InstrumentDataset
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+                required:
+                - data
+                - meta
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - name: sample_id
+      in: query
+      required: false
+      schema: &id001
+        type: integer
+        exclusiveMinimum: 0
+    - name: process_id
+      in: query
+      required: false
+      schema: *id001
+    - name: instrument_type
+      in: query
+      required: false
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/InstrumentType
+    - name: sample_mapping_status
+      in: query
+      required: false
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/SampleMappingStatus
+  post:
+    tags:
+    - 仪器数据
+    summary: 创建仪器数据集
+    description: 可一并提交通道与数据点。
+    operationId: createInstrumentDataset
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: ../openapi.yaml#/components/schemas/InstrumentDatasetCreate
+            - type: object
+              properties:
+                channels:
+                  type: array
+                  items:
+                    $ref: ../openapi.yaml#/components/schemas/InstrumentChannelCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/InstrumentDatasetDetail
+    x-implementation-status: planned
+/api/v1/instrument-datasets/{id}:
+  get:
+    operationId: getInstrumentDataset
+    tags:
+    - 仪器数据
+    summary: getInstrumentDataset
+    description: 只读；admin 全部，其余按可见样品或 operator_user_id 授权。include_datapoints=true 隐含 channels；默认不展开；不返回联表 sample/process/tool 或 channel_count。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/InstrumentDatasetDetail
+                required:
+                - data
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    - name: include_channels
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+    - name: include_datapoints
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+  patch:
+    tags:
+    - 仪器数据
+    summary: 更新仪器数据集
+    description: '常用于建立/修正样品映射——
+
+      将 sample_mapping_status 从 unresolved 改为 resolved。
+
+      '
+    operationId: updateInstrumentDataset
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/InstrumentDatasetUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/InstrumentDataset
+    x-implementation-status: planned
+  delete:
+    tags:
+    - 仪器数据
+    summary: 删除仪器数据集
+    operationId: deleteInstrumentDataset
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+    x-implementation-status: planned
+/api/v1/instrument-datasets/{id}/channels:
+  get:
+    tags:
+    - 仪器数据
+    summary: 数据集的通道列表
+    operationId: listInstrumentChannels
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/InstrumentChannel
+    x-implementation-status: planned
+  post:
+    tags:
+    - 仪器数据
+    summary: 添加通道
+    operationId: createInstrumentChannel
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/InstrumentChannelCreate
+    responses:
+      '201':
+        description: 已添加
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/InstrumentChannel
+    x-implementation-status: planned
+/api/v1/instrument-channels/{id}/datapoints:
+  get:
+    tags:
+    - 仪器数据
+    summary: 通道的数据点
+    description: '返回谱图数据点。XPS 单通道可达 1800+ 点，
+
+      建议配合 limit 使用或直接用于绘图。
+
+      '
+    operationId: listInstrumentDatapoints
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    - name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 10000
+        default: 5000
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/InstrumentDatapoint
+    x-implementation-status: planned
+  post:
+    tags:
+    - 仪器数据
+    summary: 批量添加数据点
+    operationId: addInstrumentDatapoints
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+            - datapoints
+            properties:
+              datapoints:
+                type: array
+                minItems: 1
+                items:
+                  $ref: ../openapi.yaml#/components/schemas/InstrumentDatapointCreate
+    responses:
+      '201':
+        description: 已添加
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      inserted_count:
+                        type: integer
+    x-implementation-status: planned
+/api/v1/attachments:
+  get:
+    tags:
+    - 附件
+    summary: 附件列表
+    operationId: listAttachments
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: entity_type
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/EntityType
+    - name: entity_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+    - name: attachment_type
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/AttachmentType
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Attachment
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: planned
+  post:
+    tags:
+    - 附件
+    summary: 登记附件
+    operationId: createAttachment
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/AttachmentCreate
+    responses:
+      '201':
+        description: 已登记
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Attachment
+    x-implementation-status: planned
+/api/v1/attachments/{id}:
+  delete:
+    tags:
+    - 附件
+    summary: 删除附件登记
+    operationId: deleteAttachment
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+    x-implementation-status: planned
+/api/v1/tools:
+  get:
+    tags:
+    - 设备与配方
+    summary: 设备列表
+    operationId: listTools
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - name: keyword
+      in: query
+      schema:
+        type: string
+        maxLength: 128
+        default: ''
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Tool
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: implemented
+    description: 所有登录角色可读取共享设备选择列表；按 tool_code/tool_name 包含搜索，按名称及 ID 排序。
+  post:
+    tags:
+    - 设备与配方
+    summary: 创建设备
+    operationId: createTool
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/Tool
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Tool
+    x-implementation-status: planned
+/api/v1/tools/{id}:
+  get:
+    tags:
+    - 设备与配方
+    summary: 设备详情
+    operationId: getTool
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Tool
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: planned
+  patch:
+    tags:
+    - 设备与配方
+    summary: 更新设备
+    operationId: updateTool
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/Tool
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Tool
+    x-implementation-status: planned
+/api/v1/recipes:
+  get:
+    tags:
+    - 设备与配方
+    summary: 配方列表
+    description: 返回的是**标称配方**；实际运行参数见工艺步骤。
+    operationId: listRecipes
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: recipe_kind
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/RecipeKind
+    - name: status
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/RecipeStatus
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Recipe
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: planned
+  post:
+    tags:
+    - 设备与配方
+    summary: 创建配方
+    operationId: createRecipe
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/Recipe
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Recipe
+    x-implementation-status: planned
+/api/v1/recipes/{id}:
+  get:
+    tags:
+    - 设备与配方
+    summary: 配方详情
+    operationId: getRecipe
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Recipe
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: planned
+  patch:
+    tags:
+    - 设备与配方
+    summary: 更新配方
+    operationId: updateRecipe
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/Recipe
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Recipe
+    x-implementation-status: planned

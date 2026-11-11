@@ -1,0 +1,594 @@
+/api/v1/dashboard/summary:
+  get:
+    tags:
+    - 首页
+    summary: 概况统计
+    description: '首页顶部统计卡片数据。包含批次、样品、测量、结论、问题等计数。
+
+      `measurement_count` 只统计当前有效测量（不含被取代的基线）。
+
+      admin 可访问全部；operator/viewer 仅自己的批次与样品，样品所属批次也须可见；无共享。'
+    operationId: getDashboardSummary
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/DashboardSummary
+    x-implementation-status: implemented
+/api/v1/dashboard/recent:
+  get:
+    tags:
+    - 首页
+    summary: 最新数据
+    description: 返回当前用户可见批次、样品的最近审计活动；管理员另可见用户活动。
+    operationId: getDashboardRecent
+    parameters:
+    - name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 8
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                      - entity_type
+                      - entity_id
+                      - action
+                      - occurred_at
+                      - description
+                      properties:
+                        entity_type:
+                          type: string
+                        entity_id:
+                          type: integer
+                        action:
+                          type: string
+                        occurred_at:
+                          type: string
+                          format: date-time
+                        description:
+                          type: string
+    x-implementation-status: implemented
+/api/v1/dashboard/upcoming-plans:
+  get:
+    tags:
+    - 首页
+    summary: 近期计划
+    description: 未完成且计划开始日期在近期范围内的实验计划。
+    operationId: getDashboardUpcomingPlans
+    parameters:
+    - name: days
+      in: query
+      description: 向前查看天数
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 365
+        default: 30
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/DashboardUpcomingPlan
+    x-implementation-status: planned
+/api/v1/dashboard/alerts:
+  get:
+    tags:
+    - 首页
+    summary: 数据质量提示
+    description: '**本接口体现工作台不只是展示数据，而是主动提示风险。**
+
+
+      服务端识别的问题包括：
+
+      - `cross_model_comparison`         跨光学模型相减的结果
+
+      - `high_mse_measurement`           高 MSE 测点（如 B05-S08 的 20.58）
+
+      - `superseded_baseline`            存在被取代的基线
+
+      - `unresolved_instrument_mapping`  仪器数据未映射到样品
+
+      - `excluded_sample_used`           被排除样品出现在统计中
+
+      - `missing_intermediate_measurement` 缺少中间测厚（净差值归因受限）
+
+      - `model_inconsistent_derived`     派生结果跨模型
+
+      '
+    operationId: getDashboardAlerts
+    parameters:
+    - name: severity
+      in: query
+      schema:
+        type: string
+        enum:
+        - high
+        - medium
+        - low
+    - name: alert_type
+      in: query
+      schema:
+        type: string
+    - name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/DataQualityAlert
+    x-implementation-status: planned
+/api/v1/charts/templates:
+  get:
+    tags:
+    - 图表中心
+    summary: 图表模板列表
+    description: '返回预置模板清单。模板覆盖本项目的典型图表：
+
+      膜厚随循环次数折线、样品对比柱状、整片 Mapping 空间图、
+
+      拟合质量散点、差值直方图等。
+
+      '
+    operationId: listChartTemplates
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/ChartTemplate'
+    x-implementation-status: planned
+/api/v1/charts/measurement-series:
+  get:
+    tags:
+    - 图表中心
+    summary: 膜厚序列数据
+    description: '返回一组样品的膜厚随阶段/循环次数变化的序列，
+
+      用于绘制折线图。默认只取当前有效测量。
+
+
+      **注意**：不同批次不应放在同一张图上比较——
+
+      初始厚度约 30/300/74/47nm 差异过大。
+
+      接口按 batch_id 分组返回，前端应分组绘制。
+
+      '
+    operationId: getMeasurementSeries
+    parameters:
+    - name: sample_ids
+      in: query
+      required: true
+      description: 样品 ID 列表，逗号分隔
+      schema:
+        type: string
+      example: 1,2,3
+    - name: metric
+      in: query
+      description: 纵轴指标
+      schema:
+        type: string
+        enum:
+        - thickness_mean_nm
+        - mse_mean
+        - gof_mean
+        - thickness_sd_nm
+        default: thickness_mean_nm
+    - name: include_superseded
+      in: query
+      schema:
+        type: boolean
+        default: false
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      metric:
+                        type: string
+                      series:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            sample_id:
+                              type: integer
+                              format: int64
+                            sample_code:
+                              type: string
+                            batch_code:
+                              type: string
+                            points:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  stage:
+                                    $ref: ../openapi.yaml#/components/schemas/MeasurementStage
+                                  stage_seq:
+                                    type:
+                                    - integer
+                                    - 'null'
+                                  cumulative_cycles:
+                                    type:
+                                    - integer
+                                    - 'null'
+                                  value:
+                                    type:
+                                    - string
+                                    - 'null'
+                                  measurement_id:
+                                    type: integer
+                                    format: int64
+                                  is_current:
+                                    type: boolean
+    x-implementation-status: planned
+/api/v1/charts/mapping:
+  get:
+    tags:
+    - 图表中心
+    summary: 空间分布数据（膜厚 Mapping）
+    description: '返回某次测量的全部测点坐标与膜厚，用于绘制空间分布图。
+
+      坐标为 mm，膜厚为 nm，均为字符串以避免浮点精度损失。
+
+      '
+    operationId: getMappingData
+    parameters:
+    - name: measurement_id
+      in: query
+      required: true
+      schema:
+        type: integer
+        format: int64
+    - name: metric
+      in: query
+      schema:
+        type: string
+        enum:
+        - thickness_nm
+        - mse
+        - gof
+        - intensity
+        default: thickness_nm
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      measurement_id:
+                        type: integer
+                        format: int64
+                      sample_code:
+                        type: string
+                      stage:
+                        $ref: ../openapi.yaml#/components/schemas/MeasurementStage
+                      metric:
+                        type: string
+                      point_count:
+                        type: integer
+                      x_range:
+                        type: array
+                        items:
+                          type: string
+                        minItems: 2
+                        maxItems: 2
+                      y_range:
+                        type: array
+                        items:
+                          type: string
+                        minItems: 2
+                        maxItems: 2
+                      value_range:
+                        type: array
+                        items:
+                          type: string
+                        minItems: 2
+                        maxItems: 2
+                      points:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            point_no:
+                              type: integer
+                            x_mm:
+                              type: string
+                            y_mm:
+                              type: string
+                            value:
+                              type:
+                              - string
+                              - 'null'
+                            is_outlier:
+                              type: boolean
+    x-implementation-status: planned
+/api/v1/charts/comparison:
+  get:
+    tags:
+    - 图表中心
+    summary: 样品对比数据
+    description: '返回一组样品在同一工艺模式下的结果对比，用于柱状图。
+
+
+      **关键约束**：接口会校验所请求样品的 process_mode 是否一致。
+
+      若混入 `full_cycle` 与 `pre_expose_then_react` 两类，
+
+      响应中会给出警告——这两类绝不可合并比较（EXP-09 vs EXP-10）。
+
+      '
+    operationId: getComparisonData
+    parameters:
+    - name: sample_ids
+      in: query
+      required: true
+      schema:
+        type: string
+      example: 1,2,3
+    - name: result_kind
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/ResultKind
+        default: apparent_removal_R
+    - name: group_by
+      in: query
+      description: 分组维度
+      schema:
+        type: string
+        enum:
+        - sample
+        - batch
+        - process_mode
+        default: sample
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      result_kind:
+                        $ref: ../openapi.yaml#/components/schemas/ResultKind
+                      groups:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            group_key:
+                              type: string
+                            group_label:
+                              type: string
+                            batch_code:
+                              type:
+                              - string
+                              - 'null'
+                            process_mode:
+                              $ref: ../openapi.yaml#/components/schemas/ProcessMode
+                            items:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  sample_id:
+                                    type: integer
+                                    format: int64
+                                  sample_code:
+                                    type: string
+                                  value_nm:
+                                    type:
+                                    - string
+                                    - 'null'
+                                  value_sd_nm:
+                                    type:
+                                    - string
+                                    - 'null'
+                                  model_consistent:
+                                    type:
+                                    - boolean
+                                    - 'null'
+                      warnings:
+                        type: array
+                        description: 数据可比性警告
+                        items:
+                          type: string
+                        examples:
+                        - - 检测到 full_cycle 与 pre_expose_then_react 两种工艺模式混合，二者不可直接比较
+    x-implementation-status: planned
+/api/v1/charts/fit-quality:
+  get:
+    tags:
+    - 图表中心
+    summary: 拟合质量数据
+    description: '返回 MSE / GOF 随测点或样品的变化，用于识别拟合异常。
+
+      可指定 mse_threshold 标出超过阈值的点（如 20.58）。
+
+      '
+    operationId: getFitQualityData
+    parameters:
+    - name: sample_ids
+      in: query
+      description: 样品 ID 列表，逗号分隔；为空则返回全部
+      schema:
+        type: string
+    - name: measurement_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+    - name: mse_threshold
+      in: query
+      description: MSE 告警阈值
+      schema:
+        type: string
+        default: '5.0'
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            measurement_id:
+                              type: integer
+                              format: int64
+                            measurement_code:
+                              type: string
+                            sample_code:
+                              type: string
+                            stage:
+                              $ref: ../openapi.yaml#/components/schemas/MeasurementStage
+                            mse_mean:
+                              type:
+                              - string
+                              - 'null'
+                            mse_max:
+                              type:
+                              - string
+                              - 'null'
+                            gof_mean:
+                              type:
+                              - string
+                              - 'null'
+                            exceeds_threshold:
+                              type: boolean
+    x-implementation-status: planned
+/api/v1/charts/export:
+  post:
+    tags:
+    - 图表中心
+    summary: 导出图表数据
+    description: '将指定数据集导出为 CSV / XLSX。用于论文绘图前的数据整理。
+
+      导出操作会记入审计日志（action=export）。
+
+      '
+    operationId: exportChartData
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+            - data_source
+            - format
+            properties:
+              data_source:
+                type: string
+                enum:
+                - measurement_series
+                - mapping
+                - comparison
+                - fit_quality
+                - pairing
+                - derived_results
+              format:
+                type: string
+                enum:
+                - csv
+                - xlsx
+                default: csv
+              params:
+                type: object
+                additionalProperties: true
+                description: 对应数据接口的查询参数
+    responses:
+      '200':
+        description: 导出成功，返回文件流
+        content:
+          text/csv:
+            schema:
+              type: string
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema:
+              type: string
+              format: binary
+    x-implementation-status: planned

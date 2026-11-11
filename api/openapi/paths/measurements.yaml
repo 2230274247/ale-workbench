@@ -1,0 +1,865 @@
+/api/v1/optical-models:
+  get:
+    tags:
+    - 光学模型
+    summary: 光学模型列表
+    description: '椭偏 n/k 模型列表。由于 n/k 编码在原始文件名而非内容中，
+
+      且同一样品前后测量可能用不同模型，本资源是结论可信度的关键。
+
+      '
+    operationId: listOpticalModels
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: status
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/OpticalModelStatus
+    - name: applicable_batch_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/OpticalModel
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: planned
+  post:
+    tags:
+    - 光学模型
+    summary: 创建光学模型
+    operationId: createOpticalModel
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/OpticalModel
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/OpticalModel
+    x-implementation-status: planned
+/api/v1/optical-models/{id}:
+  get:
+    tags:
+    - 光学模型
+    summary: 光学模型详情
+    operationId: getOpticalModel
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/OpticalModel
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: planned
+  patch:
+    tags:
+    - 光学模型
+    summary: 更新光学模型
+    operationId: updateOpticalModel
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/OpticalModel
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/OpticalModel
+    x-implementation-status: planned
+/api/v1/measurements:
+  get:
+    operationId: listMeasurements
+    tags:
+    - 测量
+    summary: listMeasurements
+    description: 默认包含当前与历史测量；current/is_current 与 quality/quality_flag 是别名，同时给出则叠加过滤。样品范围授权。sort 仅支持后端白名单。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Measurement
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+                required:
+                - data
+                - meta
+    parameters:
+    - &id004
+      $ref: ../openapi.yaml#/components/parameters/PageParam
+    - &id005
+      $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+    - name: sample_id
+      in: query
+      required: false
+      schema: &id001
+        type: integer
+        exclusiveMinimum: 0
+    - name: process_id
+      in: query
+      required: false
+      schema: *id001
+    - name: stage
+      in: query
+      required: false
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/MeasurementStage
+    - name: current
+      in: query
+      required: false
+      schema: &id002
+        type: boolean
+    - name: is_current
+      in: query
+      required: false
+      schema: *id002
+    - name: quality
+      in: query
+      required: false
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/MeasurementQualityFlag
+    - name: quality_flag
+      in: query
+      required: false
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/MeasurementQualityFlag
+  post:
+    tags:
+    - 测量
+    summary: 创建测量
+    description: '可随测量一并提交点级数据（points 字段）。
+
+      服务端会根据点级数据自动计算 thickness_mean_nm 等统计量
+
+      （若请求中未显式提供）。
+
+      '
+    operationId: createMeasurement
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/MeasurementCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/MeasurementDetail
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: planned
+/api/v1/measurements/{id}:
+  get:
+    tags:
+    - 测量
+    summary: 测量详情
+    description: 详情始终包含 points，返回 measurements 原行和点数据，不自动展开样品或取代链。
+    operationId: getMeasurement
+    parameters:
+    - &id003
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/MeasurementDetail
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: implemented
+  patch:
+    tags:
+    - 测量
+    summary: 更新测量
+    operationId: updateMeasurement
+    parameters:
+    - *id003
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/MeasurementUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/MeasurementDetail
+                required:
+                - data
+    x-implementation-status: implemented
+    description: 仅质量更新；至少显式提交 quality_flag 或 quality_note。只更新实际提交字段；变化时将依赖结果 is_valid=false；版本递增。
+  delete:
+    tags:
+    - 测量
+    summary: 删除测量
+    description: 仅管理员可访问。级联删除其点级数据。
+    operationId: deleteMeasurement
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+    x-implementation-status: planned
+/api/v1/measurements/{id}/supersede:
+  post:
+    operationId: supersedeMeasurement
+    tags:
+    - 测量
+    summary: supersedeMeasurement
+    description: admin/operator；必须指定替代测量及双方当前版本和非空原因。两者同样品、均 current；替代测量不能已有前驱；拒绝分叉/循环/重复取代。旧行 is_current=false 并保存 reason，新行
+      supersedes_measurement_id 指旧行；双方版本递增，依赖双方的派生结果失效。返回旧测量详情加 replacement，不返回失效ID列表。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/MeasurementSupersedeResult
+                required:
+                - data
+    parameters:
+    - *id003
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/MeasurementSupersedeRequest
+/api/v1/measurements/{id}/points:
+  get:
+    tags:
+    - 测量
+    summary: 测量的点级数据
+    description: 按 point_no、point_id 返回全部点。
+    operationId: listMeasurementPoints
+    parameters:
+    - *id003
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/MeasurementPoint
+    x-implementation-status: implemented
+  post:
+    tags:
+    - 测量
+    summary: 批量添加点级数据
+    operationId: addMeasurementPoints
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+            - points
+            properties:
+              points:
+                type: array
+                minItems: 1
+                items:
+                  $ref: ../openapi.yaml#/components/schemas/MeasurementPointCreate
+              recalc_summary:
+                type: boolean
+                default: true
+                description: 是否重算测量级统计量
+    responses:
+      '201':
+        description: 已添加
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      inserted_count:
+                        type: integer
+                      measurement:
+                        $ref: ../openapi.yaml#/components/schemas/Measurement
+    x-implementation-status: planned
+/api/v1/measurement-points/{id}:
+  patch:
+    tags:
+    - 测量
+    summary: 更新单个测点
+    operationId: updateMeasurementPoint
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/MeasurementPointUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/MeasurementPoint
+    x-implementation-status: planned
+  delete:
+    tags:
+    - 测量
+    summary: 删除单个测点
+    operationId: deleteMeasurementPoint
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+    x-implementation-status: planned
+/api/v1/derived-results:
+  get:
+    tags:
+    - 数据分析
+    summary: 派生结果列表
+    description: '默认仅返回有效结果（is_valid=true）。
+
+      可通过 model_consistent=false 筛选出**跨模型相减**的结果，
+
+      这类结果的解释需格外谨慎。
+
+      '
+    operationId: listDerivedResults
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/SortParam
+    - name: sample_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+    - name: process_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+    - name: result_kind
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/ResultKind
+    - name: evidence_level
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/EvidenceLevel
+    - name: model_consistent
+      in: query
+      description: 筛选跨模型相减（false）或同模型（true）的结果
+      schema:
+        type: boolean
+    - name: is_valid
+      in: query
+      schema:
+        type: boolean
+        default: true
+    - name: batch_code
+      in: query
+      schema:
+        type: string
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/DerivedResult
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: planned
+  post:
+    tags:
+    - 数据分析
+    summary: 创建派生结果
+    description: '服务端会自动判定 model_consistent（比较前后测量的
+
+      optical_model_id 是否相同），不接受客户端指定。
+
+      '
+    operationId: createDerivedResult
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/DerivedResultCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/DerivedResult
+    x-implementation-status: planned
+/api/v1/derived-results/{id}:
+  get:
+    tags:
+    - 数据分析
+    summary: 派生结果详情
+    operationId: getDerivedResult
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/DerivedResultDetail
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: planned
+  delete:
+    tags:
+    - 数据分析
+    summary: 删除派生结果
+    operationId: deleteDerivedResult
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+    x-implementation-status: planned
+/api/v1/derived-results/recompute:
+  post:
+    tags:
+    - 数据分析
+    summary: 批量重算派生结果
+    description: '当光学模型变更或测量被取代后，重新计算受影响的派生结果。
+
+      服务端按 pairing_method 重新配对并更新 value_nm、model_consistent。
+
+      '
+    operationId: recomputeDerivedResults
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              result_ids:
+                type: array
+                description: 指定要重算的结果 ID；为空则重算全部 is_valid=false 的结果
+                items:
+                  type: integer
+                  format: int64
+              sample_ids:
+                type: array
+                items:
+                  type: integer
+                  format: int64
+              process_ids:
+                type: array
+                items:
+                  type: integer
+                  format: int64
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      recomputed_count:
+                        type: integer
+                      results:
+                        type: array
+                        items:
+                          $ref: ../openapi.yaml#/components/schemas/DerivedResult
+    x-implementation-status: planned
+/api/v1/analysis/pair:
+  post:
+    tags:
+    - 数据分析
+    operationId: pairMeasurements
+    summary: pairMeasurements
+    description: 真实来源按当前用户权限加载；最多20组/20000测点；十进制字符串，50位ROUND_HALF_EVEN；不插值、不推断关联或机理。必须confirm_pair=true、不同测量、同样品/光学模型，真实XY唯一精确匹配；无匹配/未知或不一致模型返回422。include_points=false省略points。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功；统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '#/components/schemas/ApiEnvelope'
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PairingResponse'
+      '401':
+        $ref: '#/components/responses/Unauthorized'
+      '403':
+        $ref: '#/components/responses/Forbidden'
+      '404':
+        $ref: '#/components/responses/NotFound'
+      '409':
+        $ref: '#/components/responses/Conflict'
+      '422':
+        $ref: '#/components/responses/UnprocessableEntity'
+      '503':
+        $ref: '#/components/responses/ServiceUnavailable'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PairingRequest'
+/api/v1/source-files:
+  get:
+    operationId: listSourceFiles
+    tags:
+    - 原始文件
+    summary: listSourceFiles
+    description: 只读安全投影；按可见 occurrence/样品/测量/点/历史dataset关联授权；admin 全部。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/SourceFileRead
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+                required:
+                - data
+                - meta
+    parameters:
+    - *id004
+    - *id005
+    - name: sample_id
+      in: query
+      required: false
+      schema: *id001
+  post:
+    tags:
+    - 原始文件
+    summary: 登记原始文件
+    operationId: createSourceFile
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/SourceFileCreate
+    responses:
+      '201':
+        description: 已登记
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/SourceFile
+      '409':
+        description: 相同 SHA-256 的文件已登记
+        content:
+          application/json:
+            schema:
+              $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+    x-implementation-status: planned
+/api/v1/source-files/{id}:
+  get:
+    operationId: getSourceFile
+    tags:
+    - 原始文件
+    summary: getSourceFile
+    description: 只读详情，occurrences 单独按权限过滤；不返回全局路径及备注。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/SourceFileReadDetail
+                required:
+                - data
+    parameters:
+    - *id003
+  patch:
+    tags:
+    - 原始文件
+    summary: 更新文件登记信息
+    description: 仅可更新解析状态与备注，不可修改文件本身。
+    operationId: updateSourceFile
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              sample_id:
+                type: integer
+                format: int64
+              batch_id:
+                type: integer
+                format: int64
+              parse_status:
+                $ref: ../openapi.yaml#/components/schemas/ParseStatus
+              parse_note:
+                type: string
+              is_duplicate_of:
+                type: integer
+                format: int64
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/SourceFile
+    x-implementation-status: planned
+/api/v1/source-files/verify:
+  post:
+    tags:
+    - 原始文件
+    summary: 校验文件指纹
+    description: '按 SHA-256 校验原始文件是否被改动。
+
+      传入文件名与期望哈希，服务端比对登记记录。
+
+      '
+    operationId: verifySourceFiles
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+            - files
+            properties:
+              files:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - file_sha256
+                  properties:
+                    file_sha256:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    file_name:
+                      type: string
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      matched:
+                        type: integer
+                      unknown:
+                        type: array
+                        items:
+                          type: string
+    x-implementation-status: planned
+/api/v1/source-files/{id}/content:
+  get:
+    operationId: downloadSourceFile
+    tags:
+    - 原始文件
+    summary: 下载原始文件
+    description: 授权后读取不可变存储并验证 SHA；原件不存在404，完整性失败409。成功直接返回二进制，无 JSON 包络。
+    x-implementation-status: implemented
+    parameters:
+    - *id003
+    responses:
+      '200':
+        description: 原始字节
+        headers:
+          Content-Disposition:
+            schema:
+              type: string
+            description: attachment; filename*=UTF-8 编码安全文件名
+          X-Content-Type-Options:
+            schema:
+              type: string
+            description: nosniff
+          Cache-Control:
+            schema:
+              type: string
+            description: private, no-store；全局 middleware 最终设置 no-store
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict

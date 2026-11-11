@@ -1,0 +1,50 @@
+# —— 凭据：绝对不要提交 ——
+database/.dbcreds
+database/.appcreds
+*.dbcreds
+*.appcreds
+backend/.env
+backend/.setup-code
+backend/.ai-master-key
+
+# —— Python ——
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/.venv-win/
+.pytest_cache/
+.ruff_cache/
+
+# —— Node / 前端 ——
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.vite/
+
+# —— 本机运行产物 ——
+backend/.runtime/
+frontend/.runtime/
+*.log
+logs/
+logsreports/
+storage/
+storage-test/
+
+# —— 体积大或含真实实验数据，不入版本控制 ——
+mysql_data/
+mysql-server/
+backups/*
+!backups/.gitkeep
+reports/
+storage-backups/
+
+# —— 本机工具与助手缓存 ——
+.claude/
+.workbuddy/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp

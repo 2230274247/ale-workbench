@@ -1,0 +1,263 @@
+/api/v1/imports:
+  get:
+    operationId: listImportJobs
+    tags:
+    - 导入
+    summary: listImportJobs
+    description: 始终仅上传者本人任务，包含 admin；不嵌套 items。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/ImportJob
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+                required:
+                - data
+                - meta
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+/api/v1/imports/preview:
+  post:
+    operationId: previewImport
+    tags:
+    - 导入
+    summary: previewImport
+    description: admin/operator 上传 multipart files[]；<=20MiB/文件、<=100MiB总计。仅保存任务、解析预览与不可变原件，不创建测量/source occurrence/dataset。未知格式只保留原件，Office锁文件422；超限413。
+    x-implementation-status: implemented
+    responses:
+      '201':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ImportJobDetail
+                required:
+                - data
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ImportPreviewRequest
+/api/v1/imports/{job_id}:
+  get:
+    operationId: getImportJob
+    tags:
+    - 导入
+    summary: getImportJob
+    description: 本人任务；完整 parse_result 与 suggestions；不暴露 import_items.storage_key。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ImportJobDetail
+                required:
+                - data
+    parameters:
+    - name: job_id
+      in: path
+      required: true
+      schema:
+        type: integer
+  delete:
+    operationId: deleteImportJob
+    tags:
+    - 导入
+    summary: 删除未产生正式来源记录的本人导入任务
+    description: admin/operator 且仅本人（含 admin）。版本可选；已导入测量、归档原件或任何来源引用返回 409。200 返回删除结果；事务完成后仅清理全局无引用暂存原件。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ImportDeleteResult
+                required:
+                - data
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    parameters:
+    - name: job_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    - name: expected_row_version
+      in: query
+      required: false
+      schema:
+        type:
+        - integer
+        - 'null'
+        exclusiveMinimum: 0
+/api/v1/imports/{job_id}/confirm:
+  post:
+    operationId: confirmImportJob
+    tags:
+    - 导入
+    summary: confirmImportJob
+    description: item_id 不得重复；按选中项原子确认；未选项 pending；相同规范化请求含版本号重放已保存结果，不同旧版本返回409。 科学导入仅支持验证通过的 Eoptics blocks；block 阻断时只能 original_only 或 skip。pair_measurement_id 只校验基线并保留 provenance，不计算派生结果。不自动建dataset。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ImportConfirmationResult
+                required:
+                - data
+    parameters:
+    - name: job_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/ImportConfirmation
+/api/v1/imports/options/samples:
+  get:
+    operationId: listImportSampleOptions
+    tags:
+    - 导入
+    summary: 搜索可见样品候选
+    description: 按样品编码、显示名、批次编码搜索；按可见样品范围分页。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/ImportSampleOption
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+                required:
+                - data
+                - meta
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    parameters:
+    - name: keyword
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+        default: ''
+    - name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    - name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+/api/v1/imports/options/samples/{sample_id}:
+  get:
+    operationId: getImportAssociationOptions
+    tags:
+    - 导入
+    summary: 读取样品可用执行与当前测量基线
+    description: 样品须可见；执行须与该样品绑定且可见；基线仅含该样品 is_current=true 且有权读取的测量。
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/ImportAssociationOptions
+                required:
+                - data
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    parameters:
+    - name: sample_id
+      in: path
+      required: true
+      schema:
+        type: integer

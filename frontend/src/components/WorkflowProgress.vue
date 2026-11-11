@@ -1,0 +1,9 @@
+<script setup lang="ts">
+defineProps<{active:number;stages:{key:string;status:string}[];disabled?:boolean}>()
+defineEmits<{'select':[number]}>()
+const titles=['研究目标','选择计划','工艺矩阵','参与样品','执行记录','实际参数','测量与分析']
+</script>
+<template><nav class="workflow-progress" aria-label="实验阶段"><button v-for="(title,i) in titles" :key="title" type="button" :disabled="disabled" :class="{active:active===i,saved:stages[i]?.status==='saved'}" :aria-current="active===i?'step':undefined" :aria-label="`${title}：${stages[i]?.status==='saved'?'已保存':'待记录（可跳过）'}`" @click="$emit('select',i)"><span class="node">{{ i+1 }}</span><strong>{{ title }}</strong><small>{{ stages[i]?.status==='saved'?'已保存':'待记录 · 可跳过' }}</small></button></nav></template>
+<style scoped>
+.workflow-progress{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));overflow-x:auto;padding:20px 4px 24px;gap:0}.workflow-progress button{position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;background:transparent;border:0;color:var(--text-secondary,#61736e);cursor:pointer;min-width:110px}.workflow-progress button:before{content:'';position:absolute;top:23px;left:0;right:0;border-top:2px solid var(--line,#dce5e0)}.workflow-progress button:first-child:before{left:50%}.workflow-progress button:last-child:before{right:50%}.node{position:relative;display:grid;place-items:center;border:2px solid #aabbb3;border-radius:50%;width:48px;height:48px;background:var(--bg,#f4f7f5);font-size:18px}.saved .node{background:#e0eee5;border-color:#397552;color:#245a3a}.active .node{background:#245a3a;border-color:#245a3a;color:white;outline:3px solid #c8dbcc;outline-offset:3px}.active strong{color:#245a3a}small{font-size:11px}button:focus-visible{outline:2px solid #397552;outline-offset:-2px}button:disabled{cursor:wait}
+</style>

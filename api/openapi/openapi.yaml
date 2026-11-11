@@ -1,0 +1,1935 @@
+openapi: 3.1.0
+info:
+  title: ALE 实验工作台 API
+  version: 1.8.0
+  summary: 第八轮：记录生命周期、实验向导与首页聚合
+  description: '账户隔离同步：用途management/research/testing、配置环境、可选admin_global_scope；AI用户月额度/策略及policy、usage/me和admin分账。
+
+
+    当前1.8.0：0011/0012增量生命周期元数据；生命周期影响预览/应用、实验向导和三个首页聚合，共8个新增实际操作。四类记录include_voided，样品另有include_archived；作废与归档不改写科学观测。
+
+
+    当前1.7.0：0010通用step_kind、process_flow与两个grid PUT；5个科学分析操作（既有pair转implemented）。准备态只读分析元数据未接入live AI工具。AI models为实际供应商发现/账本操作，不是分析工具注册。Windows实际重启和真实DeepSeek连通未在本次验证。
+
+
+    当前1.6.0：在第五轮契约基础新增样品作废及十一个AI操作（含请求列表/详情、恢复、对账）；既有operationId与planned范围保留。AI科学工具只读，但配置、预算预留、请求、会话与调用追踪会持久化。对话ID仅本人可复用（含admin不能访问他人会话）；每轮使用当前问题、当前上下文和新查询结果；仅参考最近两轮成功请求的用户意图并在当前权限下重执行最多四个去重工具计划，旧模型答案不外发。
+
+
+    历史1.5.0实现说明：当时保留原142操作及operationId，新增导入任务删除、样品与关联选项、步骤参数模板CRUD五操作、批次与执行归档，共152操作。原GET /tools从planned转implemented。
+
+
+    通用步骤parameter_snapshot严格复用backend/app/step_templates.py的ParameterSnapshot：step_type、temperature(value/unit)、groups(name/fields[name/value/unit])；值为字符串或null，不由旧参数或模板自动推断。批次/执行archived_at独立可空，归档必须携带expected_row_version。
+
+
+    新增通用化学体系（体系/物种/可复用步骤模板）、批次内批量创建样品、运行批量绑定样品、计划归档与自定义步骤参数（step_name/custom_parameters）；plan status 扩展 archived。
+
+    导入 multipart files[] 预览与逐项原子确认；测量质量 PATCH 与显式 supersede；source/dataset 只读。verify、source POST/PATCH、手工 measurement POST、点写入、光学模型等仍
+    planned。
+
+    导入任务仅本人（含admin）；资源按真实样品/操作人/occurrence范围授权。admin/operator 可导入和更新质量/取代，viewer只读。原件按SHA不可变保存；下载成功为binary，其他业务JSON统一包络。
+
+    operator/viewer 的计划按 owner_user_id、运行按 operator_user_id 过滤，并验证所有关联批次/计划/样品可见。admin/operator 可写 Phase 2；viewer 只读。批次/样品删除仍仅
+    admin；有科学依赖返回 409，不级联或置空关联。
+
+    计划与运行有 row_version，子项修改递增父版本；PATCH/DELETE 的 expected_row_version 可选，流转创建则必填样品版本。step_id 表示实际步骤完成之后；历史按 transition_id 追加顺序查询。绑定不改变样品状态，load/unload
+    控制占用。
+
+    DECIMAL 仅接受普通十进制字符串；未知观测保持 null，计划/配方不自动填充实际观测。请求与响应独立，请求禁止额外字段与服务端 ID。
+
+    access JWT 1 小时，refresh JWT 7 天；数据库会话可撤销，刷新轮换 refresh。刷新可选 JSON refresh_token，省略使用 HttpOnly、SameSite=Strict cookie，HTTPS
+    下 Secure。
+
+    统一包络 code/message/data/request_id/timestamp；204 无 body；分页 data 数组与同级 meta。'
+  contact:
+    name: ALE 实验工作台项目组
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+- url: http://127.0.0.1:8000
+  description: 本地开发环境
+- url: https://ale-workbench.local
+  description: 课题组内部部署
+tags:
+- name: 认证
+  description: 注册、登录、令牌管理、当前用户信息
+- name: 用户管理
+  description: 用户 CRUD 与审计日志（仅管理员）
+- name: 首页
+  description: 概况统计、最新数据、近期计划、数据质量提示
+- name: 批次
+  description: 沉积批次管理。批次是数据可比性的强制隔离边界
+- name: 样品
+  description: 样品管理、母片-小样层级、证据汇总
+- name: 样品流转
+  description: 样品状态变更时间线
+- name: 实验计划
+  description: 实验计划（执行之前）
+- name: 实验执行
+  description: 工艺运行、工艺步骤、运行-样品关联
+- name: 光学模型
+  description: 椭偏 n/k 模型管理
+- name: 测量
+  description: 测量记录与点级数据、重测取代链
+- name: 数据分析
+  description: 派生结果、点级配对计算
+- name: 原始文件
+  description: 原始文件登记与 SHA-256 溯源
+- name: 图表中心
+  description: 图表模板、数据接口、导出
+- name: 结论台账
+  description: 研究结论（区分实测观察与机理假设）
+- name: 问题台账
+  description: 问题记录与禁止误用条款
+- name: 仪器数据
+  description: XPS / RGA / 未来仪器数据的通用三层模型
+- name: 附件
+  description: 图、Origin 工程、报告等产出登记
+- name: 设备与配方
+  description: 仪器设备台账与工艺配方（标称定义）
+- name: 导入
+  description: 不可变原件、解析预览、手动关联及显式确认
+- name: 化学体系
+  description: 通用化学体系、物种与可复用步骤模板
+- name: 步骤参数模板
+  description: 通用分组参数模板及快照，独立于化学体系步骤模板
+- name: AI助手
+  description: 可选只读科研助手；配置与用量仅admin，status/chat所有登录角色
+- name: 生命周期
+- name: 实验向导
+security:
+- BearerAuth: []
+paths:
+  /api/v1/auth/register:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1auth~1register
+  /api/v1/auth/login:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1auth~1login
+  /api/v1/auth/refresh:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1auth~1refresh
+  /api/v1/auth/logout:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1auth~1logout
+  /api/v1/auth/me:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1auth~1me
+  /api/v1/auth/password:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1auth~1password
+  /api/v1/users:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1users
+  /api/v1/users/{id}:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1users~1{id}
+  /api/v1/users/{id}/password:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1users~1{id}~1password
+  /api/v1/audit-logs:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1audit-logs
+  /api/v1/dashboard/summary:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1dashboard~1summary
+  /api/v1/dashboard/recent:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1dashboard~1recent
+  /api/v1/dashboard/upcoming-plans:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1dashboard~1upcoming-plans
+  /api/v1/dashboard/alerts:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1dashboard~1alerts
+  /api/v1/batches:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1batches
+  /api/v1/batches/code-status:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1batches~1code-status
+  /api/v1/batches/{id}/code:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1batches~1{id}~1code
+  /api/v1/batches/{id}:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1batches~1{id}
+  /api/v1/batches/{id}/samples:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1batches~1{id}~1samples
+  /api/v1/samples:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1samples
+  /api/v1/samples/{id}:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1samples~1{id}
+  /api/v1/samples/{id}/evidence:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1samples~1{id}~1evidence
+  /api/v1/samples/{id}/transitions:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1samples~1{id}~1transitions
+  /api/v1/transitions:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1transitions
+  /api/v1/plans:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1plans
+  /api/v1/plans/{id}:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1plans~1{id}
+  /api/v1/processes:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1processes
+  /api/v1/processes/{id}:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1processes~1{id}
+  /api/v1/processes/{id}/steps:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1processes~1{id}~1steps
+  /api/v1/process-steps/{id}:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1process-steps~1{id}
+  /api/v1/processes/{id}/samples:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1processes~1{id}~1samples
+  /api/v1/process-samples/{id}:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1process-samples~1{id}
+  /api/v1/optical-models:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1optical-models
+  /api/v1/optical-models/{id}:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1optical-models~1{id}
+  /api/v1/measurements:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1measurements
+  /api/v1/measurements/{id}:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1measurements~1{id}
+  /api/v1/measurements/{id}/supersede:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1measurements~1{id}~1supersede
+  /api/v1/measurements/{id}/points:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1measurements~1{id}~1points
+  /api/v1/measurement-points/{id}:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1measurement-points~1{id}
+  /api/v1/derived-results:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1derived-results
+  /api/v1/derived-results/{id}:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1derived-results~1{id}
+  /api/v1/derived-results/recompute:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1derived-results~1recompute
+  /api/v1/analysis/pair:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1analysis~1pair
+  /api/v1/source-files:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1source-files
+  /api/v1/source-files/{id}:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1source-files~1{id}
+  /api/v1/source-files/verify:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1source-files~1verify
+  /api/v1/charts/templates:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1charts~1templates
+  /api/v1/charts/measurement-series:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1charts~1measurement-series
+  /api/v1/charts/mapping:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1charts~1mapping
+  /api/v1/charts/comparison:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1charts~1comparison
+  /api/v1/charts/fit-quality:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1charts~1fit-quality
+  /api/v1/charts/export:
+    $ref: ./paths/dashboard.yaml#/~1api~1v1~1charts~1export
+  /api/v1/findings:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1findings
+  /api/v1/findings/{id}:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1findings~1{id}
+  /api/v1/issues:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1issues
+  /api/v1/issues/{id}:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1issues~1{id}
+  /api/v1/issues/{id}/links:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1issues~1{id}~1links
+  /api/v1/issue-links/{id}:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1issue-links~1{id}
+  /api/v1/instrument-datasets:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1instrument-datasets
+  /api/v1/instrument-datasets/{id}:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1instrument-datasets~1{id}
+  /api/v1/instrument-datasets/{id}/channels:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1instrument-datasets~1{id}~1channels
+  /api/v1/instrument-channels/{id}/datapoints:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1instrument-channels~1{id}~1datapoints
+  /api/v1/attachments:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1attachments
+  /api/v1/attachments/{id}:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1attachments~1{id}
+  /api/v1/tools:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1tools
+  /api/v1/tools/{id}:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1tools~1{id}
+  /api/v1/recipes:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1recipes
+  /api/v1/recipes/{id}:
+    $ref: ./paths/findings.yaml#/~1api~1v1~1recipes~1{id}
+  /api/v1/auth/setup-status:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1auth~1setup-status
+  /api/v1/auth/setup:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1auth~1setup
+  /api/v1/invitations:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1invitations
+  /api/v1/invitations/{id}:
+    $ref: ./paths/auth.yaml#/~1api~1v1~1invitations~1{id}
+  /api/v1/plans/{id}/steps:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1plans~1{id}~1steps
+  /api/v1/plan-steps/{id}:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1plan-steps~1{id}
+  /api/v1/imports:
+    $ref: ./paths/imports.yaml#/~1api~1v1~1imports
+  /api/v1/imports/preview:
+    $ref: ./paths/imports.yaml#/~1api~1v1~1imports~1preview
+  /api/v1/imports/{job_id}:
+    $ref: ./paths/imports.yaml#/~1api~1v1~1imports~1{job_id}
+  /api/v1/imports/{job_id}/confirm:
+    $ref: ./paths/imports.yaml#/~1api~1v1~1imports~1{job_id}~1confirm
+  /api/v1/source-files/{id}/content:
+    $ref: ./paths/measurements.yaml#/~1api~1v1~1source-files~1{id}~1content
+  /api/v1/batches/{id}/samples/batch:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1batches~1{id}~1samples~1batch
+  /api/v1/processes/{id}/samples/batch:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1processes~1{id}~1samples~1batch
+  /api/v1/plans/{id}/archive:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1plans~1{id}~1archive
+  /api/v1/chemistry-systems:
+    $ref: ./paths/chemistry.yaml#/~1api~1v1~1chemistry-systems
+  /api/v1/chemistry-systems/{id}:
+    $ref: ./paths/chemistry.yaml#/~1api~1v1~1chemistry-systems~1{id}
+  /api/v1/chemistry-systems/{id}/species:
+    $ref: ./paths/chemistry.yaml#/~1api~1v1~1chemistry-systems~1{id}~1species
+  /api/v1/species/{id}:
+    $ref: ./paths/chemistry.yaml#/~1api~1v1~1species~1{id}
+  /api/v1/chemistry-systems/{id}/step-templates:
+    $ref: ./paths/chemistry.yaml#/~1api~1v1~1chemistry-systems~1{id}~1step-templates
+  /api/v1/step-templates/{id}:
+    $ref: ./paths/chemistry.yaml#/~1api~1v1~1step-templates~1{id}
+  /api/v1/imports/options/samples:
+    $ref: ./paths/imports.yaml#/~1api~1v1~1imports~1options~1samples
+  /api/v1/imports/options/samples/{sample_id}:
+    $ref: ./paths/imports.yaml#/~1api~1v1~1imports~1options~1samples~1{sample_id}
+  /api/v1/step-parameter-templates:
+    $ref: ./paths/chemistry.yaml#/~1api~1v1~1step-parameter-templates
+  /api/v1/step-parameter-templates/{id}:
+    $ref: ./paths/chemistry.yaml#/~1api~1v1~1step-parameter-templates~1{id}
+  /api/v1/batches/{id}/archive:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1batches~1{id}~1archive
+  /api/v1/processes/{id}/archive:
+    $ref: ./paths/processes.yaml#/~1api~1v1~1processes~1{id}~1archive
+  /api/v1/samples/{id}/void:
+    $ref: ./paths/samples.yaml#/~1api~1v1~1samples~1{id}~1void
+  /api/v1/ai/status:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1status
+  /api/v1/ai/config:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1config
+  /api/v1/ai/chat:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1chat
+  /api/v1/ai/test:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1test
+  /api/v1/ai/models:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1models
+  /api/v1/ai/usage:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1usage
+  /api/v1/ai/requests:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1requests
+  /api/v1/ai/requests/{request_id}:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1requests~1{request_id}
+  /api/v1/ai/recover:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1recover
+  /api/v1/ai/requests/{request_id}/reconcile:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1requests~1{request_id}~1reconcile
+  /api/v1/analysis/calculate:
+    post:
+      tags:
+      - 数据分析
+      operationId: calculateScientificAnalysis
+      summary: calculateScientificAnalysis
+      description: 真实来源按当前用户权限加载；最多20组/20000测点；十进制字符串，50位ROUND_HALF_EVEN；不插值、不推断关联或机理。仅计算，不写科学数据。
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；统一包络
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiEnvelope'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/AnalysisResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisCalculate'
+  /api/v1/analysis/save:
+    post:
+      tags:
+      - 数据分析
+      operationId: saveScientificAnalysis
+      summary: saveScientificAnalysis
+      description: 真实来源按当前用户权限加载；最多20组/20000测点；十进制字符串，50位ROUND_HALF_EVEN；不插值、不推断关联或机理。admin/operator显式保存派生快照；仅1组正式测量或明确2组配对，必须expected_row_version；记录recipe/摘要/哈希，不修改测量和原件。
+      x-implementation-status: implemented
+      responses:
+        '201':
+          description: 成功；统一包络
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiEnvelope'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/AnalysisSaveResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisSave'
+  /api/v1/analysis/saved/{result_id}:
+    get:
+      tags:
+      - 数据分析
+      operationId: getSavedScientificAnalysis
+      summary: getSavedScientificAnalysis
+      description: 按可见样品加载派生快照；重核来源版本/current/quality，过期返回is_valid=false；不重新写入。
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；统一包络
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiEnvelope'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/AnalysisSavedResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      parameters:
+      - name: result_id
+        in: path
+        required: true
+        schema:
+          type: integer
+  /api/v1/analysis/measurements:
+    get:
+      tags:
+      - 数据分析
+      operationId: listAnalysisMeasurements
+      summary: listAnalysisMeasurements
+      description: 真实来源按当前用户权限加载；最多20组/20000测点；十进制字符串，50位ROUND_HALF_EVEN；不插值、不推断关联或机理。仅当前测量；data数组，顶层meta={limit:200,has_more:boolean}，非分页PageMeta。
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；统一包络
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiEnvelope'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Measurement'
+                    meta:
+                      type: object
+                      additionalProperties: false
+                      properties:
+                        limit:
+                          type: integer
+                          enum:
+                          - 200
+                        has_more:
+                          type: boolean
+                          x-db-column: false
+                      required:
+                      - limit
+                      - has_more
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      parameters:
+      - name: sample_id
+        in: query
+        schema:
+          type: integer
+          exclusiveMinimum: 0
+      - name: batch_id
+        in: query
+        schema:
+          type: integer
+          exclusiveMinimum: 0
+      - name: process_id
+        in: query
+        schema:
+          type: integer
+          exclusiveMinimum: 0
+      - name: stage
+        in: query
+        schema:
+          $ref: '#/components/schemas/MeasurementStage'
+  /api/v1/plans/{id}/process-grid:
+    put:
+      tags:
+      - 实验计划
+      operationId: savePlanGrid
+      summary: savePlanGrid
+      description: 原子保存布局与步骤，admin/operator；CAS父expected_row_version，返回完整detail及递增版本。steps.key唯一；process_flow.step_id提交必须是每个key且仅一次；响应替换为真实step_id。现有步骤ID保留；权限/映射/历史保护，冲突409。最多500节点、32组、4层嵌套、1MiB。计划steps不得填写plan_step_id。
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；统一包络
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiEnvelope'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/PlanGridDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessGridSave'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+  /api/v1/processes/{id}/process-grid:
+    put:
+      tags:
+      - 实验执行
+      operationId: saveProcessGrid
+      summary: saveProcessGrid
+      description: 原子保存布局与步骤，admin/operator；CAS父expected_row_version，返回完整detail及递增版本。steps.key唯一；process_flow.step_id提交必须是每个key且仅一次；响应替换为真实step_id。现有步骤ID保留；权限/映射/历史保护，冲突409。最多500节点、32组、4层嵌套、1MiB。计划steps不得填写plan_step_id。
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；统一包络
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ApiEnvelope'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/ProcessGridDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessGridSave'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+  /api/v1/lifecycle/{kind}/{id}/impact:
+    get:
+      tags:
+      - 生命周期
+      operationId: getLifecycleImpact
+      summary: getLifecycleImpact
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；真实记录统一包络
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  code:
+                    type: integer
+                    enum:
+                    - 0
+                  message: &id001
+                    type: string
+                    x-db-column: false
+                  data:
+                    $ref: '#/components/schemas/LifecycleImpact'
+                  request_id:
+                    type: string
+                    format: uuid
+                  timestamp: &id002
+                    type: string
+                    format: date-time
+                    x-db-column: false
+                required:
+                - code
+                - message
+                - data
+                - request_id
+                - timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Kind
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Id
+      description: kind 仅支持 batches/samples/plans/processes，其他值404。影响预览按可见范围返回；应用需预览token、operation_id和父版本CAS。恢复权限及当前可执行action以预览为准；同operation_id相同payload可重试；无级联删除。
+  /api/v1/lifecycle/{kind}/{id}/apply:
+    post:
+      tags:
+      - 生命周期
+      operationId: applyLifecycle
+      summary: applyLifecycle
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；真实记录统一包络
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  code:
+                    type: integer
+                    enum:
+                    - 0
+                  message: *id001
+                  data:
+                    $ref: '#/components/schemas/LifecycleApplyResult'
+                  request_id:
+                    type: string
+                    format: uuid
+                  timestamp: *id002
+                required:
+                - code
+                - message
+                - data
+                - request_id
+                - timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LifecycleApply'
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Kind
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Id
+      description: kind 仅支持 batches/samples/plans/processes，其他值404。影响预览按可见范围返回；应用需预览token、operation_id和父版本CAS。恢复权限及当前可执行action以预览为准；同operation_id相同payload可重试；无级联删除。
+  /api/v1/workflow/plans:
+    post:
+      tags:
+      - 实验向导
+      operationId: startWorkflowPlan
+      summary: startWorkflowPlan
+      x-implementation-status: implemented
+      responses:
+        '201':
+          description: 成功；真实记录统一包络
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  code:
+                    type: integer
+                    enum:
+                    - 0
+                  message: *id001
+                  data:
+                    $ref: '#/components/schemas/WorkflowPlanDetail'
+                  request_id:
+                    type: string
+                    format: uuid
+                  timestamp: *id002
+                required:
+                - code
+                - message
+                - data
+                - request_id
+                - timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowStartPlan'
+      parameters: []
+      description: 既有计划/执行记录作为草稿。缺省编码由服务端生成。关联计划仅复制步骤骨架和单位，未知实际值保持null。state只按真实保存记录计算7阶段。
+  /api/v1/workflow/processes:
+    post:
+      tags:
+      - 实验向导
+      operationId: startWorkflowProcess
+      summary: startWorkflowProcess
+      x-implementation-status: implemented
+      responses:
+        '201':
+          description: 成功；真实记录统一包络
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  code:
+                    type: integer
+                    enum:
+                    - 0
+                  message: *id001
+                  data:
+                    $ref: '#/components/schemas/WorkflowProcessDetail'
+                  request_id:
+                    type: string
+                    format: uuid
+                  timestamp: *id002
+                required:
+                - code
+                - message
+                - data
+                - request_id
+                - timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowStartProcess'
+      parameters: []
+      description: 既有计划/执行记录作为草稿。缺省编码由服务端生成。关联计划仅复制步骤骨架和单位，未知实际值保持null。state只按真实保存记录计算7阶段。
+  /api/v1/workflow/state:
+    get:
+      tags:
+      - 实验向导
+      operationId: getWorkflowState
+      summary: getWorkflowState
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；真实记录统一包络
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  code:
+                    type: integer
+                    enum:
+                    - 0
+                  message: *id001
+                  data:
+                    $ref: '#/components/schemas/WorkflowState'
+                  request_id:
+                    type: string
+                    format: uuid
+                  timestamp: *id002
+                required:
+                - code
+                - message
+                - data
+                - request_id
+                - timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      parameters:
+      - name: plan_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            exclusiveMinimum: 0
+          - type: 'null'
+          title: Plan Id
+      - name: process_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            exclusiveMinimum: 0
+          - type: 'null'
+          title: Process Id
+      description: 既有计划/执行记录作为草稿。缺省编码由服务端生成。关联计划仅复制步骤骨架和单位，未知实际值保持null。state只按真实保存记录计算7阶段。
+  /api/v1/dashboard/todo:
+    get:
+      tags:
+      - 首页
+      operationId: getDashboardTodo
+      summary: getDashboardTodo
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；真实记录统一包络
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  code:
+                    type: integer
+                    enum:
+                    - 0
+                  message: *id001
+                  data:
+                    $ref: '#/components/schemas/DashboardTodo'
+                  request_id:
+                    type: string
+                    format: uuid
+                  timestamp: *id002
+                required:
+                - code
+                - message
+                - data
+                - request_id
+                - timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 20
+          minimum: 1
+          default: 20
+          title: Limit
+  /api/v1/dashboard/recent-experiments:
+    get:
+      tags:
+      - 首页
+      operationId: getDashboardRecentExperiments
+      summary: getDashboardRecentExperiments
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；真实记录统一包络
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  code:
+                    type: integer
+                    enum:
+                    - 0
+                  message: *id001
+                  data:
+                    $ref: '#/components/schemas/DashboardRecentExperiments'
+                  request_id:
+                    type: string
+                    format: uuid
+                  timestamp: *id002
+                required:
+                - code
+                - message
+                - data
+                - request_id
+                - timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 20
+          minimum: 1
+          default: 10
+          title: Limit
+  /api/v1/dashboard/recent-data:
+    get:
+      tags:
+      - 首页
+      operationId: getDashboardRecentData
+      summary: getDashboardRecentData
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: 成功；真实记录统一包络
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  code:
+                    type: integer
+                    enum:
+                    - 0
+                  message: *id001
+                  data:
+                    $ref: '#/components/schemas/DashboardRecentData'
+                  request_id:
+                    type: string
+                    format: uuid
+                  timestamp: *id002
+                required:
+                - code
+                - message
+                - data
+                - request_id
+                - timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 20
+          minimum: 1
+          default: 10
+          title: Limit
+  /api/v1/ai/policy:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1policy
+  /api/v1/ai/usage/me:
+    $ref: ./paths/ai.yaml#/~1api~1v1~1ai~1usage~1me
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: '在请求头中携带：`Authorization: Bearer <access_token>`。
+
+        access_token 有效期 1 小时，过期后用 `/auth/refresh` 换取新令牌。
+
+        '
+  responses:
+    Success:
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiEnvelope'
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ApiEnvelope'
+            - type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ErrorDetail'
+    Unauthorized:
+      description: 未认证或令牌无效/过期
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ApiEnvelope'
+            - type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ErrorDetail'
+    Forbidden:
+      description: 已认证但权限不足
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ApiEnvelope'
+            - type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ErrorDetail'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ApiEnvelope'
+            - type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ErrorDetail'
+    Conflict:
+      description: 资源冲突（如唯一键重复）
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ApiEnvelope'
+            - type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ErrorDetail'
+    UnprocessableEntity:
+      description: 业务规则校验失败
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ApiEnvelope'
+            - type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ErrorDetail'
+    TooManyRequests:
+      description: 请求过于频繁（触发限流）
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ApiEnvelope'
+            - type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ErrorDetail'
+    InternalError:
+      description: 服务端内部错误
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ApiEnvelope'
+            - type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ErrorDetail'
+    ServiceUnavailable:
+      description: 数据库不可用或迁移未就绪
+      content:
+        application/json:
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/ApiEnvelope'
+            - type: object
+              properties:
+                data:
+                  $ref: '#/components/schemas/ErrorDetail'
+  parameters:
+    PageParam:
+      $ref: ./components/schemas/common.yaml#/parameters/PageParam
+    SizeParam:
+      $ref: ./components/schemas/common.yaml#/parameters/SizeParam
+    SortParam:
+      $ref: ./components/schemas/common.yaml#/parameters/SortParam
+    KeywordParam:
+      $ref: ./components/schemas/common.yaml#/parameters/KeywordParam
+    IdPathParam:
+      $ref: ./components/schemas/common.yaml#/parameters/IdPathParam
+  schemas:
+    ApiEnvelope:
+      $ref: ./components/schemas/common.yaml#/ApiEnvelope
+    ErrorDetail:
+      $ref: ./components/schemas/common.yaml#/ErrorDetail
+    FieldError:
+      $ref: ./components/schemas/common.yaml#/FieldError
+    PageMeta:
+      $ref: ./components/schemas/common.yaml#/PageMeta
+    SortOrder:
+      $ref: ./components/schemas/common.yaml#/SortOrder
+    UserRole:
+      $ref: ./components/schemas/auth.yaml#/UserRole
+    UserStatus:
+      $ref: ./components/schemas/auth.yaml#/UserStatus
+    User:
+      $ref: ./components/schemas/auth.yaml#/User
+    UserBrief:
+      $ref: ./components/schemas/auth.yaml#/UserBrief
+    RegisterRequest:
+      $ref: ./components/schemas/auth.yaml#/RegisterRequest
+    LoginRequest:
+      $ref: ./components/schemas/auth.yaml#/LoginRequest
+    TokenPair:
+      $ref: ./components/schemas/auth.yaml#/TokenPair
+    LoginResponse:
+      $ref: ./components/schemas/auth.yaml#/LoginResponse
+    RefreshRequest:
+      $ref: ./components/schemas/auth.yaml#/RefreshRequest
+    ChangePasswordRequest:
+      $ref: ./components/schemas/auth.yaml#/ChangePasswordRequest
+    CurrentUser:
+      $ref: ./components/schemas/auth.yaml#/CurrentUser
+    AuditAction:
+      $ref: ./components/schemas/auth.yaml#/AuditAction
+    AuditLog:
+      $ref: ./components/schemas/auth.yaml#/AuditLog
+    EvidenceLevel:
+      $ref: ./components/schemas/auth.yaml#/EvidenceLevel
+    IssueSeverity:
+      $ref: ./components/schemas/auth.yaml#/IssueSeverity
+    IssueStatus:
+      $ref: ./components/schemas/auth.yaml#/IssueStatus
+    EntityType:
+      $ref: ./components/schemas/auth.yaml#/EntityType
+    BatchStatus:
+      $ref: ./components/schemas/domain.yaml#/BatchStatus
+    Batch:
+      $ref: ./components/schemas/domain.yaml#/Batch
+    BatchCreate:
+      $ref: ./components/schemas/domain.yaml#/BatchCreate
+    BatchCodeUpdate:
+      $ref: ./components/schemas/domain.yaml#/BatchCodeUpdate
+    BatchCodeStatus:
+      $ref: ./components/schemas/domain.yaml#/BatchCodeStatus
+    BatchUpdate:
+      $ref: ./components/schemas/domain.yaml#/BatchUpdate
+    SampleType:
+      $ref: ./components/schemas/domain.yaml#/SampleType
+    SampleStatus:
+      $ref: ./components/schemas/domain.yaml#/SampleStatus
+    Sample:
+      $ref: ./components/schemas/domain.yaml#/Sample
+    SampleDetail:
+      $ref: ./components/schemas/domain.yaml#/SampleDetail
+    SampleBrief:
+      $ref: ./components/schemas/domain.yaml#/SampleBrief
+    SampleExperiment:
+      $ref: ./components/schemas/domain.yaml#/SampleExperiment
+    ParticipationEvent:
+      $ref: ./components/schemas/domain.yaml#/ParticipationEvent
+    ParticipationMeasurement:
+      $ref: ./components/schemas/domain.yaml#/ParticipationMeasurement
+    ParticipationSummary:
+      $ref: ./components/schemas/domain.yaml#/ParticipationSummary
+    SampleCreate:
+      $ref: ./components/schemas/domain.yaml#/SampleCreate
+    SampleUpdate:
+      $ref: ./components/schemas/domain.yaml#/SampleUpdate
+    PlanStatus:
+      $ref: ./components/schemas/domain.yaml#/PlanStatus
+    PlanPriority:
+      $ref: ./components/schemas/domain.yaml#/PlanPriority
+    ExperimentPlan:
+      $ref: ./components/schemas/domain.yaml#/ExperimentPlan
+    ExperimentPlanDetail:
+      $ref: ./components/schemas/domain.yaml#/ExperimentPlanDetail
+    ExperimentPlanCreate:
+      $ref: ./components/schemas/domain.yaml#/ExperimentPlanCreate
+    ExperimentPlanUpdate:
+      $ref: ./components/schemas/domain.yaml#/ExperimentPlanUpdate
+    ToolType:
+      $ref: ./components/schemas/domain.yaml#/ToolType
+    ToolStatus:
+      $ref: ./components/schemas/domain.yaml#/ToolStatus
+    Tool:
+      $ref: ./components/schemas/domain.yaml#/Tool
+    RecipeKind:
+      $ref: ./components/schemas/domain.yaml#/RecipeKind
+    RecipeStatus:
+      $ref: ./components/schemas/domain.yaml#/RecipeStatus
+    Recipe:
+      $ref: ./components/schemas/domain.yaml#/Recipe
+    OpticalModelStatus:
+      $ref: ./components/schemas/domain.yaml#/OpticalModelStatus
+    OpticalModel:
+      $ref: ./components/schemas/domain.yaml#/OpticalModel
+    ProcessMode:
+      $ref: ./components/schemas/domain.yaml#/ProcessMode
+    ProcessLogStatus:
+      $ref: ./components/schemas/domain.yaml#/ProcessLogStatus
+    ProcessStepKind:
+      $ref: ./components/schemas/domain.yaml#/ProcessStepKind
+    Process:
+      $ref: ./components/schemas/domain.yaml#/Process
+    ProcessBrief:
+      $ref: ./components/schemas/domain.yaml#/ProcessBrief
+    ProcessDetail:
+      $ref: ./components/schemas/domain.yaml#/ProcessDetail
+    ProcessStep:
+      $ref: ./components/schemas/domain.yaml#/ProcessStep
+    ProcessSampleLink:
+      $ref: ./components/schemas/domain.yaml#/ProcessSampleLink
+    TransitionEventType:
+      $ref: ./components/schemas/domain.yaml#/TransitionEventType
+    SampleTransition:
+      $ref: ./components/schemas/domain.yaml#/SampleTransition
+    SampleTransitionCreate:
+      $ref: ./components/schemas/domain.yaml#/SampleTransitionCreate
+    MeasurementStage:
+      $ref: ./components/schemas/measurement.yaml#/MeasurementStage
+    MeasurementQualityFlag:
+      $ref: ./components/schemas/measurement.yaml#/MeasurementQualityFlag
+    Measurement:
+      $ref: ./components/schemas/measurement.yaml#/Measurement
+    MeasurementDetail:
+      $ref: ./components/schemas/measurement.yaml#/MeasurementDetail
+    MeasurementBrief:
+      $ref: ./components/schemas/measurement.yaml#/MeasurementBrief
+    MeasurementCreate:
+      $ref: ./components/schemas/measurement.yaml#/MeasurementCreate
+    MeasurementUpdate:
+      $ref: ./components/schemas/measurement.yaml#/MeasurementUpdate
+    SupersedeRequest:
+      $ref: ./components/schemas/measurement.yaml#/SupersedeRequest
+    MeasurementPoint:
+      $ref: ./components/schemas/measurement.yaml#/MeasurementPoint
+    MeasurementPointCreate:
+      $ref: ./components/schemas/measurement.yaml#/MeasurementPointCreate
+    MeasurementPointUpdate:
+      $ref: ./components/schemas/measurement.yaml#/MeasurementPointUpdate
+    ResultKind:
+      $ref: ./components/schemas/measurement.yaml#/ResultKind
+    PairingMethod:
+      $ref: ./components/schemas/measurement.yaml#/PairingMethod
+    DerivedResult:
+      $ref: ./components/schemas/measurement.yaml#/DerivedResult
+    DerivedResultDetail:
+      $ref: ./components/schemas/measurement.yaml#/DerivedResultDetail
+    DerivedResultCreate:
+      $ref: ./components/schemas/measurement.yaml#/DerivedResultCreate
+    PairedPointDelta:
+      $ref: ./components/schemas/measurement.yaml#/PairedPointDelta
+    PairingRequest:
+      $ref: ./components/schemas/measurement.yaml#/PairingRequest
+    PairingResponse:
+      $ref: ./components/schemas/measurement.yaml#/PairingResponse
+    FileRole:
+      $ref: ./components/schemas/measurement.yaml#/FileRole
+    ParseStatus:
+      $ref: ./components/schemas/measurement.yaml#/ParseStatus
+    SourceFile:
+      $ref: ./components/schemas/measurement.yaml#/SourceFile
+    SourceFileCreate:
+      $ref: ./components/schemas/measurement.yaml#/SourceFileCreate
+    Finding:
+      $ref: ./components/schemas/measurement.yaml#/Finding
+    FindingCreate:
+      $ref: ./components/schemas/measurement.yaml#/FindingCreate
+    FindingUpdate:
+      $ref: ./components/schemas/measurement.yaml#/FindingUpdate
+    Issue:
+      $ref: ./components/schemas/measurement.yaml#/Issue
+    IssueDetail:
+      $ref: ./components/schemas/measurement.yaml#/IssueDetail
+    IssueCreate:
+      $ref: ./components/schemas/measurement.yaml#/IssueCreate
+    IssueUpdate:
+      $ref: ./components/schemas/measurement.yaml#/IssueUpdate
+    IssueLink:
+      $ref: ./components/schemas/measurement.yaml#/IssueLink
+    IssueLinkCreate:
+      $ref: ./components/schemas/measurement.yaml#/IssueLinkCreate
+    InstrumentType:
+      $ref: ./components/schemas/instrument.yaml#/InstrumentType
+    SampleMappingStatus:
+      $ref: ./components/schemas/instrument.yaml#/SampleMappingStatus
+    InstrumentDataset:
+      $ref: ./components/schemas/instrument.yaml#/InstrumentDataset
+    InstrumentDatasetDetail:
+      $ref: ./components/schemas/instrument.yaml#/InstrumentDatasetDetail
+    InstrumentDatasetCreate:
+      $ref: ./components/schemas/instrument.yaml#/InstrumentDatasetCreate
+    InstrumentDatasetUpdate:
+      $ref: ./components/schemas/instrument.yaml#/InstrumentDatasetUpdate
+    ChannelType:
+      $ref: ./components/schemas/instrument.yaml#/ChannelType
+    InstrumentChannel:
+      $ref: ./components/schemas/instrument.yaml#/InstrumentChannel
+    InstrumentChannelCreate:
+      $ref: ./components/schemas/instrument.yaml#/InstrumentChannelCreate
+    InstrumentDatapoint:
+      $ref: ./components/schemas/instrument.yaml#/InstrumentDatapoint
+    InstrumentDatapointCreate:
+      $ref: ./components/schemas/instrument.yaml#/InstrumentDatapointCreate
+    AttachmentType:
+      $ref: ./components/schemas/instrument.yaml#/AttachmentType
+    Attachment:
+      $ref: ./components/schemas/instrument.yaml#/Attachment
+    AttachmentCreate:
+      $ref: ./components/schemas/instrument.yaml#/AttachmentCreate
+    DashboardSummary:
+      $ref: ./components/schemas/instrument.yaml#/DashboardSummary
+    DashboardRecentActivity:
+      $ref: ./components/schemas/instrument.yaml#/DashboardRecentActivity
+    DashboardUpcomingPlan:
+      $ref: ./components/schemas/instrument.yaml#/DashboardUpcomingPlan
+    DataQualityAlert:
+      $ref: ./components/schemas/instrument.yaml#/DataQualityAlert
+    ChartType:
+      $ref: ./components/schemas/chart.yaml#/ChartType
+    ChartTemplate:
+      $ref: ./components/schemas/chart.yaml#/ChartTemplate
+    CreateUserRequest:
+      $ref: ./components/schemas/auth.yaml#/CreateUserRequest
+    UserUpdate:
+      $ref: ./components/schemas/auth.yaml#/UserUpdate
+    SetupStatus:
+      $ref: ./components/schemas/auth.yaml#/SetupStatus
+    SetupRequest:
+      $ref: ./components/schemas/auth.yaml#/SetupRequest
+    InvitationRole:
+      $ref: ./components/schemas/auth.yaml#/InvitationRole
+    Invitation:
+      $ref: ./components/schemas/auth.yaml#/Invitation
+    CreateInvitationRequest:
+      $ref: ./components/schemas/auth.yaml#/CreateInvitationRequest
+    CreateInvitationResponse:
+      $ref: ./components/schemas/auth.yaml#/CreateInvitationResponse
+    PlanCreate:
+      $ref: ./components/schemas/domain.yaml#/PlanCreate
+    PlanUpdate:
+      $ref: ./components/schemas/domain.yaml#/PlanUpdate
+    StepParameters:
+      $ref: ./components/schemas/domain.yaml#/StepParameters
+    PlanStepCreate:
+      $ref: ./components/schemas/domain.yaml#/PlanStepCreate
+    PlanStepUpdate:
+      $ref: ./components/schemas/domain.yaml#/PlanStepUpdate
+    ProcessCreate:
+      $ref: ./components/schemas/domain.yaml#/ProcessCreate
+    ProcessUpdate:
+      $ref: ./components/schemas/domain.yaml#/ProcessUpdate
+    ProcessStepCreate:
+      $ref: ./components/schemas/domain.yaml#/ProcessStepCreate
+    ProcessStepUpdate:
+      $ref: ./components/schemas/domain.yaml#/ProcessStepUpdate
+    ProcessSampleCreate:
+      $ref: ./components/schemas/domain.yaml#/ProcessSampleCreate
+    ProcessSampleUpdate:
+      $ref: ./components/schemas/domain.yaml#/ProcessSampleUpdate
+    TransitionCreate:
+      $ref: ./components/schemas/domain.yaml#/TransitionCreate
+    PlanStep:
+      $ref: ./components/schemas/domain.yaml#/PlanStep
+    ImportJobStatus:
+      $ref: ./components/schemas/imports.yaml#/ImportJobStatus
+    ImportItemStatus:
+      $ref: ./components/schemas/imports.yaml#/ImportItemStatus
+    ImportPreviewRequest:
+      $ref: ./components/schemas/imports.yaml#/ImportPreviewRequest
+    ImportChoice:
+      $ref: ./components/schemas/imports.yaml#/ImportChoice
+    ImportConfirmation:
+      $ref: ./components/schemas/imports.yaml#/ImportConfirmation
+    ParserIssue:
+      $ref: ./components/schemas/imports.yaml#/ParserIssue
+    ParserRawValue:
+      $ref: ./components/schemas/imports.yaml#/ParserRawValue
+    ParserPoint:
+      $ref: ./components/schemas/imports.yaml#/ParserPoint
+    ParserFieldStatistics:
+      $ref: ./components/schemas/imports.yaml#/ParserFieldStatistics
+    ParserStatistics:
+      $ref: ./components/schemas/imports.yaml#/ParserStatistics
+    ParserBlock:
+      $ref: ./components/schemas/imports.yaml#/ParserBlock
+    ImportParseResult:
+      $ref: ./components/schemas/imports.yaml#/ImportParseResult
+    ImportSuggestions:
+      $ref: ./components/schemas/imports.yaml#/ImportSuggestions
+    ImportItemResult:
+      $ref: ./components/schemas/imports.yaml#/ImportItemResult
+    ImportJob:
+      $ref: ./components/schemas/imports.yaml#/ImportJob
+    ImportItem:
+      $ref: ./components/schemas/imports.yaml#/ImportItem
+    ImportJobDetail:
+      $ref: ./components/schemas/imports.yaml#/ImportJobDetail
+    ImportConfirmationResult:
+      $ref: ./components/schemas/imports.yaml#/ImportConfirmationResult
+    ImportConfirmationRecord:
+      $ref: ./components/schemas/imports.yaml#/ImportConfirmationRecord
+    SourceFileOccurrence:
+      $ref: ./components/schemas/imports.yaml#/SourceFileOccurrence
+    SourceFileRead:
+      $ref: ./components/schemas/imports.yaml#/SourceFileRead
+    SourceFileReadDetail:
+      $ref: ./components/schemas/imports.yaml#/SourceFileReadDetail
+    MeasurementSupersedeRequest:
+      $ref: ./components/schemas/imports.yaml#/MeasurementSupersedeRequest
+    MeasurementSupersedeResult:
+      $ref: ./components/schemas/imports.yaml#/MeasurementSupersedeResult
+    SystemStatus:
+      $ref: ./components/schemas/chemistry.yaml#/SystemStatus
+    SpeciesRole:
+      $ref: ./components/schemas/chemistry.yaml#/SpeciesRole
+    TemplateParameter:
+      $ref: ./components/schemas/chemistry.yaml#/TemplateParameter
+    TemplateStep:
+      $ref: ./components/schemas/chemistry.yaml#/TemplateStep
+    ChemistrySystem:
+      $ref: ./components/schemas/chemistry.yaml#/ChemistrySystem
+    ChemistrySystemCreate:
+      $ref: ./components/schemas/chemistry.yaml#/ChemistrySystemCreate
+    ChemistrySystemUpdate:
+      $ref: ./components/schemas/chemistry.yaml#/ChemistrySystemUpdate
+    ChemistrySpecies:
+      $ref: ./components/schemas/chemistry.yaml#/ChemistrySpecies
+    SpeciesCreate:
+      $ref: ./components/schemas/chemistry.yaml#/SpeciesCreate
+    SpeciesUpdate:
+      $ref: ./components/schemas/chemistry.yaml#/SpeciesUpdate
+    ChemistryStepTemplate:
+      $ref: ./components/schemas/chemistry.yaml#/ChemistryStepTemplate
+    TemplateCreate:
+      $ref: ./components/schemas/chemistry.yaml#/TemplateCreate
+    TemplateUpdate:
+      $ref: ./components/schemas/chemistry.yaml#/TemplateUpdate
+    CustomParameter:
+      $ref: ./components/schemas/domain.yaml#/CustomParameter
+    CustomParameters:
+      $ref: ./components/schemas/domain.yaml#/CustomParameters
+    BatchItem:
+      $ref: ./components/schemas/domain.yaml#/BatchItem
+    BatchSampleCreate:
+      $ref: ./components/schemas/domain.yaml#/BatchSampleCreate
+    BatchLinkCreate:
+      $ref: ./components/schemas/domain.yaml#/BatchLinkCreate
+    PlanArchive:
+      $ref: ./components/schemas/domain.yaml#/PlanArchive
+    ParameterField:
+      $ref: ./components/schemas/chemistry.yaml#/ParameterField
+    ParameterGroup:
+      $ref: ./components/schemas/chemistry.yaml#/ParameterGroup
+    Temperature:
+      $ref: ./components/schemas/chemistry.yaml#/Temperature
+    ParameterSnapshot:
+      $ref: ./components/schemas/chemistry.yaml#/ParameterSnapshot
+    StepParameterTemplateCreate:
+      $ref: ./components/schemas/chemistry.yaml#/StepParameterTemplateCreate
+    StepParameterTemplateUpdate:
+      $ref: ./components/schemas/chemistry.yaml#/StepParameterTemplateUpdate
+    StepParameterTemplate:
+      $ref: ./components/schemas/chemistry.yaml#/StepParameterTemplate
+    ImportDeleteResult:
+      $ref: ./components/schemas/imports.yaml#/ImportDeleteResult
+    ImportSampleOption:
+      $ref: ./components/schemas/imports.yaml#/ImportSampleOption
+    ImportProcessOption:
+      $ref: ./components/schemas/imports.yaml#/ImportProcessOption
+    ImportBaselineOption:
+      $ref: ./components/schemas/imports.yaml#/ImportBaselineOption
+    ImportAssociationOptions:
+      $ref: ./components/schemas/imports.yaml#/ImportAssociationOptions
+    RecordArchive:
+      $ref: ./components/schemas/domain.yaml#/RecordArchive
+    SampleVoid:
+      $ref: ./components/schemas/domain.yaml#/SampleVoid
+    AISettings:
+      $ref: ./components/schemas/ai.yaml#/AISettings
+    AIConfigWrite:
+      $ref: ./components/schemas/ai.yaml#/AIConfigWrite
+    AIContext:
+      $ref: ./components/schemas/ai.yaml#/AIContext
+    AIChatRequest:
+      $ref: ./components/schemas/ai.yaml#/AIChatRequest
+    AITestRequest:
+      $ref: ./components/schemas/ai.yaml#/AITestRequest
+    AIStatus:
+      $ref: ./components/schemas/ai.yaml#/AIStatus
+    AIConfig:
+      $ref: ./components/schemas/ai.yaml#/AIConfig
+    AISourceKind:
+      $ref: ./components/schemas/ai.yaml#/AISourceKind
+    AISource:
+      $ref: ./components/schemas/ai.yaml#/AISource
+    AIToolTrace:
+      $ref: ./components/schemas/ai.yaml#/AIToolTrace
+    AIRequestStatus:
+      $ref: ./components/schemas/ai.yaml#/AIRequestStatus
+    AIResultError:
+      $ref: ./components/schemas/ai.yaml#/AIResultError
+    AIRequestUsage:
+      $ref: ./components/schemas/ai.yaml#/AIRequestUsage
+    AIResult:
+      $ref: ./components/schemas/ai.yaml#/AIResult
+    AIPendingResult:
+      $ref: ./components/schemas/ai.yaml#/AIPendingResult
+    AICompletedResult:
+      $ref: ./components/schemas/ai.yaml#/AICompletedResult
+    AIFailedResult:
+      $ref: ./components/schemas/ai.yaml#/AIFailedResult
+    AITurnResult:
+      $ref: ./components/schemas/ai.yaml#/AITurnResult
+    AIUsageSummary:
+      $ref: ./components/schemas/ai.yaml#/AIUsageSummary
+    AIReconcileRequest:
+      $ref: ./components/schemas/ai.yaml#/AIReconcileRequest
+    AIResultRecovery:
+      $ref: ./components/schemas/ai.yaml#/AIResultRecovery
+    AIAccountRecovery:
+      $ref: ./components/schemas/ai.yaml#/AIAccountRecovery
+    AIOriginalUsage:
+      $ref: ./components/schemas/ai.yaml#/AIOriginalUsage
+    AIReconciliationAudit:
+      $ref: ./components/schemas/ai.yaml#/AIReconciliationAudit
+    AIRequestAccountOwner:
+      $ref: ./components/schemas/ai.yaml#/AIRequestAccountOwner
+    AIRequestAccountAdmin:
+      $ref: ./components/schemas/ai.yaml#/AIRequestAccountAdmin
+    AIRequestAccount:
+      $ref: ./components/schemas/ai.yaml#/AIRequestAccount
+    AIRequestList:
+      $ref: ./components/schemas/ai.yaml#/AIRequestList
+    AIRecoverResult:
+      $ref: ./components/schemas/ai.yaml#/AIRecoverResult
+    AnalysisSource:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisSource
+    AnalysisSelection:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisSelection
+    AnalysisCalculate:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisCalculate
+    AnalysisSave:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisSave
+    FlowNode:
+      $ref: ./components/schemas/measurement.yaml#/FlowNode
+    ProcessFlow:
+      $ref: ./components/schemas/measurement.yaml#/ProcessFlow
+    GridStep:
+      $ref: ./components/schemas/measurement.yaml#/GridStep
+    ProcessGridSave:
+      $ref: ./components/schemas/measurement.yaml#/ProcessGridSave
+    AnalysisMetric:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisMetric
+    AnalysisStatistics:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisStatistics
+    AnalysisPoint:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisPoint
+    AnalysisRecordedConditions:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisRecordedConditions
+    AnalysisSourceMetadata:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisSourceMetadata
+    AnalysisSeries:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisSeries
+    AnalysisPairPoint:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisPairPoint
+    AnalysisPair:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisPair
+    AnalysisResult:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisResult
+    AnalysisSaveResult:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisSaveResult
+    AnalysisSavedRecord:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisSavedRecord
+    AnalysisSavedResult:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisSavedResult
+    AnalysisReadonlyToolMetadata:
+      $ref: ./components/schemas/measurement.yaml#/AnalysisReadonlyToolMetadata
+    AIModelMetadata:
+      $ref: ./components/schemas/ai.yaml#/AIModelMetadata
+    AIModelEffort:
+      $ref: ./components/schemas/ai.yaml#/AIModelEffort
+    AIModelCapabilities:
+      $ref: ./components/schemas/ai.yaml#/AIModelCapabilities
+    PlanGridDetail:
+      $ref: ./components/schemas/domain.yaml#/PlanGridDetail
+    ProcessGridDetail:
+      $ref: ./components/schemas/domain.yaml#/ProcessGridDetail
+    LifecycleBatch:
+      $ref: ./components/schemas/round8.yaml#/LifecycleBatch
+    LifecycleSample:
+      $ref: ./components/schemas/round8.yaml#/LifecycleSample
+    LifecycleExperimentPlan:
+      $ref: ./components/schemas/round8.yaml#/LifecycleExperimentPlan
+    LifecycleProcess:
+      $ref: ./components/schemas/round8.yaml#/LifecycleProcess
+    WorkflowOwner:
+      $ref: ./components/schemas/round8.yaml#/WorkflowOwner
+    WorkflowPlanDetail:
+      $ref: ./components/schemas/round8.yaml#/WorkflowPlanDetail
+    WorkflowProcessDetail:
+      $ref: ./components/schemas/round8.yaml#/WorkflowProcessDetail
+    WorkflowStartPlan:
+      $ref: ./components/schemas/round8.yaml#/WorkflowStartPlan
+    WorkflowStartProcess:
+      $ref: ./components/schemas/round8.yaml#/WorkflowStartProcess
+    LifecycleApply:
+      $ref: ./components/schemas/round8.yaml#/LifecycleApply
+    LifecycleGroup:
+      $ref: ./components/schemas/round8.yaml#/LifecycleGroup
+    LifecycleStatus:
+      $ref: ./components/schemas/round8.yaml#/LifecycleStatus
+    LifecycleSampleCandidate:
+      $ref: ./components/schemas/round8.yaml#/LifecycleSampleCandidate
+    LifecycleSampleCounts:
+      $ref: ./components/schemas/round8.yaml#/LifecycleSampleCounts
+    LifecycleSharedSample:
+      $ref: ./components/schemas/round8.yaml#/LifecycleSharedSample
+    LifecycleSharedPlan:
+      $ref: ./components/schemas/round8.yaml#/LifecycleSharedPlan
+    LifecycleShared:
+      $ref: ./components/schemas/round8.yaml#/LifecycleShared
+    LifecycleImpact:
+      $ref: ./components/schemas/round8.yaml#/LifecycleImpact
+    LifecycleDeletedBatch:
+      $ref: ./components/schemas/round8.yaml#/LifecycleDeletedBatch
+    LifecycleDeletedSample:
+      $ref: ./components/schemas/round8.yaml#/LifecycleDeletedSample
+    LifecycleDeletedPlan:
+      $ref: ./components/schemas/round8.yaml#/LifecycleDeletedPlan
+    LifecycleDeletedProcess:
+      $ref: ./components/schemas/round8.yaml#/LifecycleDeletedProcess
+    LifecycleApplyResult:
+      $ref: ./components/schemas/round8.yaml#/LifecycleApplyResult
+    WorkflowStage:
+      $ref: ./components/schemas/round8.yaml#/WorkflowStage
+    WorkflowState:
+      $ref: ./components/schemas/round8.yaml#/WorkflowState
+    DashboardTodoPlanWithoutProcess:
+      $ref: ./components/schemas/round8.yaml#/DashboardTodoPlanWithoutProcess
+    DashboardTodoProcessLog:
+      $ref: ./components/schemas/round8.yaml#/DashboardTodoProcessLog
+    DashboardTodoImportPending:
+      $ref: ./components/schemas/round8.yaml#/DashboardTodoImportPending
+    DashboardTodoImportFailure:
+      $ref: ./components/schemas/round8.yaml#/DashboardTodoImportFailure
+    DashboardTodoMeasurementReview:
+      $ref: ./components/schemas/round8.yaml#/DashboardTodoMeasurementReview
+    DashboardTodoIssue:
+      $ref: ./components/schemas/round8.yaml#/DashboardTodoIssue
+    DashboardTodoItem:
+      $ref: ./components/schemas/round8.yaml#/DashboardTodoItem
+    DashboardTodo:
+      $ref: ./components/schemas/round8.yaml#/DashboardTodo
+    DashboardRecentPlan:
+      $ref: ./components/schemas/round8.yaml#/DashboardRecentPlan
+    DashboardRecentProcess:
+      $ref: ./components/schemas/round8.yaml#/DashboardRecentProcess
+    DashboardRecentExperimentItem:
+      $ref: ./components/schemas/round8.yaml#/DashboardRecentExperimentItem
+    DashboardRecentExperiments:
+      $ref: ./components/schemas/round8.yaml#/DashboardRecentExperiments
+    DashboardRecentImportJob:
+      $ref: ./components/schemas/round8.yaml#/DashboardRecentImportJob
+    DashboardRecentMeasurement:
+      $ref: ./components/schemas/round8.yaml#/DashboardRecentMeasurement
+    DashboardRecentSourceFile:
+      $ref: ./components/schemas/round8.yaml#/DashboardRecentSourceFile
+    DashboardRecentDataItem:
+      $ref: ./components/schemas/round8.yaml#/DashboardRecentDataItem
+    DashboardRecentData:
+      $ref: ./components/schemas/round8.yaml#/DashboardRecentData
+    AccountPurpose:
+      $ref: ./components/schemas/auth.yaml#/AccountPurpose
+    OrdinaryAccountPurpose:
+      $ref: ./components/schemas/auth.yaml#/OrdinaryAccountPurpose
+    Environment:
+      $ref: ./components/schemas/auth.yaml#/Environment
+    AIUserPolicy:
+      $ref: ./components/schemas/ai.yaml#/AIUserPolicy
+    AIUserPolicyView:
+      $ref: ./components/schemas/ai.yaml#/AIUserPolicyView
+    AIUserUsage:
+      $ref: ./components/schemas/ai.yaml#/AIUserUsage
+    AIMyUsage:
+      $ref: ./components/schemas/ai.yaml#/AIMyUsage
+    AIPolicy:
+      $ref: ./components/schemas/ai.yaml#/AIPolicy
+x-prepared-readonly-analysis:
+  name: scientific_analysis
+  readonly: true
+  external_raw_data: false
+  function: app.scientificanalysis.calculate
+  request_schema:
+    $defs:
+      Selection:
+        additionalProperties: false
+        properties:
+          include_outliers:
+            default: true
+            title: Include Outliers
+            type: boolean
+          excluded_points:
+            items:
+              maxLength: 80
+              minLength: 1
+              type: string
+            maxItems: 1000
+            title: Excluded Points
+            type: array
+          reason:
+            default: ''
+            maxLength: 4000
+            title: Reason
+            type: string
+        title: Selection
+        type: object
+      Source:
+        additionalProperties: false
+        properties:
+          kind:
+            enum:
+            - measurement
+            - import_item
+            title: Kind
+            type: string
+          id:
+            exclusiveMinimum: 0
+            title: Id
+            type: integer
+          block_index:
+            default: 0
+            maximum: 15
+            minimum: 0
+            title: Block Index
+            type: integer
+          sample_id:
+            anyOf:
+            - exclusiveMinimum: 0
+              type: integer
+            - type: 'null'
+            default: null
+            title: Sample Id
+          stage:
+            anyOf:
+            - enum:
+              - initial
+              - after_o2_plasma
+              - after_o3_pre
+              - after_ale
+              - after_hf_only
+              - after_o3_only
+              - intermediate
+              - final
+              - other
+              type: string
+            - type: 'null'
+            default: null
+            title: Stage
+          stage_seq:
+            anyOf:
+            - maximum: 4294967295
+              minimum: 0
+              type: integer
+            - type: 'null'
+            default: null
+            title: Stage Seq
+          optical_model_id:
+            anyOf:
+            - exclusiveMinimum: 0
+              type: integer
+            - type: 'null'
+            default: null
+            title: Optical Model Id
+          confirm_associations:
+            default: false
+            title: Confirm Associations
+            type: boolean
+          expected_row_version:
+            anyOf:
+            - exclusiveMinimum: 0
+              type: integer
+            - type: 'null'
+            default: null
+            title: Expected Row Version
+        required:
+        - kind
+        - id
+        title: Source
+        type: object
+    additionalProperties: false
+    properties:
+      sources:
+        items:
+          $ref: '#/$defs/Source'
+        maxItems: 20
+        minItems: 1
+        title: Sources
+        type: array
+      selection:
+        $ref: '#/$defs/Selection'
+      before_index:
+        anyOf:
+        - maximum: 19
+          minimum: 0
+          type: integer
+        - type: 'null'
+        default: null
+        title: Before Index
+      after_index:
+        anyOf:
+        - maximum: 19
+          minimum: 0
+          type: integer
+        - type: 'null'
+        default: null
+        title: After Index
+      confirm_pair:
+        default: false
+        title: Confirm Pair
+        type: boolean
+    required:
+    - sources
+    title: Calculate
+    type: object
+  response_projection:
+  - analysis_version
+  - result_sha256
+  - statistics
+  - source identifiers
+  requires_authenticated_scope: true
+  live_ai_registered: false
+  description: 准备态内部元数据；未注册到AI供应商或工具执行器，无出站调用。不是API路由。

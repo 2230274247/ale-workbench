@@ -1,0 +1,607 @@
+UserRole:
+  type: string
+  enum:
+  - admin
+  - operator
+  - viewer
+  description: admin：全部数据与用户/邀请管理；operator：自己拥有的批次/样品读写；viewer：自己拥有的批次/样品只读。后续科研权限属于 planned。
+  examples:
+  - operator
+UserStatus:
+  type: string
+  enum:
+  - active
+  - disabled
+  description: 用户状态。`disabled` 用户无法登录，但历史记录保留。
+User:
+  type: object
+  description: 用户信息（安全视图，不含密码哈希）。 admin必须为management；operator/viewer必须为research/testing。
+  required:
+  - user_id
+  - username
+  - role
+  - status
+  - created_at
+  - account_purpose
+  properties:
+    user_id:
+      type: integer
+      format: int64
+      description: 用户 ID（主键）
+      examples:
+      - 1
+    username:
+      type: string
+      maxLength: 64
+      description: 登录名，全局唯一
+      examples:
+      - wyy
+    display_name:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+      description: 显示名
+      examples:
+      - 王某某
+    email:
+      type:
+      - string
+      - 'null'
+      format: email
+      maxLength: 255
+    role:
+      $ref: '#/UserRole'
+    status:
+      $ref: '#/UserStatus'
+    notes:
+      type:
+      - string
+      - 'null'
+      description: 备注
+    created_at:
+      type: string
+      format: date-time
+      description: 创建时间
+    updated_at:
+      type: string
+      format: date-time
+      description: 更新时间
+    account_purpose:
+      $ref: '#/AccountPurpose'
+      x-db-column: users.account_purpose
+UserBrief:
+  type: object
+  description: 用户简要信息（用于嵌套在其他资源中展示创建者/操作者）。
+  required:
+  - user_id
+  - username
+  properties:
+    user_id:
+      type: integer
+      format: int64
+    username:
+      type: string
+    display_name:
+      type:
+      - string
+      - 'null'
+RegisterRequest:
+  type: object
+  description: 必须使用有效一次性邀请码注册。角色及account_purpose均从邀请继承，只能research/testing；请求禁止额外字段，不能指定role或account_purpose。
+  required:
+  - username
+  - password
+  - invite_code
+  properties:
+    username:
+      type: string
+      minLength: 3
+      maxLength: 64
+      pattern: ^[A-Za-z][A-Za-z0-9_.-]{2,63}$
+      description: 登录名。字母开头，可含字母数字与 `_ . -`
+      examples:
+      - wyy
+    password:
+      type: string
+      format: password
+      minLength: 8
+      maxLength: 128
+      description: 密码至少 8 位，服务端使用 Argon2id 哈希存储。
+    display_name:
+      type: string
+      maxLength: 128
+      description: 显示名
+    email:
+      type: string
+      format: email
+      maxLength: 255
+    invite_code:
+      type: string
+      maxLength: 64
+      description: 一次性邀请码；注册成功原子消费，并继承邀请角色与用途。
+      minLength: 1
+  additionalProperties: false
+LoginRequest:
+  type: object
+  required:
+  - username
+  - password
+  properties:
+    username:
+      type: string
+      examples:
+      - wyy
+    password:
+      type: string
+      format: password
+TokenPair:
+  type: object
+  description: access JWT 1 小时，refresh JWT 7 天；绑定可撤销数据库会话，刷新轮换 refresh。刷新 cookie 为 HttpOnly、SameSite=Strict，HTTPS 下 Secure。
+  required:
+  - access_token
+  - refresh_token
+  - token_type
+  - expires_in
+  properties:
+    access_token:
+      type: string
+      description: '访问令牌（JWT）。放在 `Authorization: Bearer <token>` 头中。'
+    refresh_token:
+      type: string
+      description: 刷新令牌。仅用于换取新 access_token，不得用于业务请求。
+    token_type:
+      type: string
+      enum:
+      - Bearer
+      default: Bearer
+    expires_in:
+      type: integer
+      description: access_token 有效期（秒）
+      examples:
+      - 3600
+    refresh_expires_in:
+      type: integer
+      description: refresh_token 有效期（秒）
+      examples:
+      - 604800
+LoginResponse:
+  type: object
+  required:
+  - token
+  - user
+  properties:
+    token:
+      $ref: '#/TokenPair'
+    user:
+      $ref: '#/User'
+RefreshRequest:
+  type: object
+  properties:
+    refresh_token:
+      type: string
+  description: JSON body 可省略；refresh_token 缺省时使用 HttpOnly SameSite=Strict cookie。显式 token 优先，验证失败不会回退。
+ChangePasswordRequest:
+  type: object
+  required:
+  - old_password
+  - new_password
+  properties:
+    old_password:
+      type: string
+      format: password
+    new_password:
+      type: string
+      format: password
+      minLength: 8
+      maxLength: 128
+CurrentUser:
+  type: object
+  description: 当前用户、实际授权权限与数据范围。前端仅用于界面显示，服务端独立执行权限及所有权过滤；未实现共享。
+  required:
+  - user
+  - permissions
+  - data_scope
+  - environment
+  properties:
+    user:
+      $ref: '#/User'
+    permissions:
+      type: array
+      description: 权限标识列表（见 docs/permissions.md）
+      items:
+        type: string
+      examples:
+      - - batch:read
+        - sample:read
+    data_scope:
+      type: string
+      enum:
+      - all
+      - own
+      description: 保留all/own：all为管理员全局范围；own为本人范围；admin_global_scope是独立可选布尔约定。
+      examples:
+      - own
+    environment:
+      $ref: '#/Environment'
+    admin_global_scope:
+      type: boolean
+      description: 管理员全局数据范围标志；true表示全局，false表示本人。可选扩展字段，按本字段约定；不改变data_scope现有枚举。
+      x-db-column: false
+AuditAction:
+  type: string
+  enum:
+  - insert
+  - update
+  - delete
+  - login
+  - export
+  description: 操作类型。
+AuditLog:
+  type: object
+  description: 操作审计记录。用于追溯"这个数值是谁改的、什么时候改的"。
+  required:
+  - audit_id
+  - action
+  - entity_type
+  - occurred_at
+  properties:
+    audit_id:
+      type: integer
+      format: int64
+    user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    user:
+      $ref: '#/UserBrief'
+    action:
+      $ref: '#/AuditAction'
+    entity_type:
+      type: string
+      description: 被操作实体类型
+      examples:
+      - measurement
+    entity_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    field_name:
+      type:
+      - string
+      - 'null'
+      description: 被修改的字段名（update 时有值）
+      examples:
+      - thickness_mean_nm
+    old_value:
+      type:
+      - string
+      - 'null'
+    new_value:
+      type:
+      - string
+      - 'null'
+    client_info:
+      type:
+      - string
+      - 'null'
+      description: 客户端标识（IP / UA）
+    occurred_at:
+      type: string
+      format: date-time
+EvidenceLevel:
+  type: string
+  enum:
+  - measured
+  - hypothesis
+  - unverified
+  description: '证据等级。本工作台的核心字段之一，强制区分：
+
+    - `measured`     实测观察（如 F01「完整O3-HF-TMA x100 对应 1.19-1.81nm 表观减薄」）
+
+    - `hypothesis`   机理假设（如 F07「O3 可能改变表面终止状态」）
+
+    - `unverified`   未验证
+
+    '
+  examples:
+  - measured
+IssueSeverity:
+  type: string
+  enum:
+  - high
+  - medium_high
+  - medium
+  - medium_low
+  - low
+  description: 问题严重度。
+IssueStatus:
+  type: string
+  enum:
+  - open
+  - investigating
+  - resolved
+  - accepted_risk
+  - deferred
+  description: 问题处理状态。
+EntityType:
+  type: string
+  enum:
+  - experiment_plan
+  - process
+  - sample
+  - measurement
+  - source_file
+  - finding
+  - batch
+  - derived_result
+  - instrument_dataset
+  description: 实体类型（用于多态关联与附件挂载）。
+CreateUserRequest:
+  type: object
+  description: 仅admin创建用户；role默认viewer、account_purpose默认research。创建admin且省略account_purpose时自动management；显式不匹配返回422。
+  required:
+  - username
+  - password
+  properties:
+    username:
+      type: string
+      minLength: 3
+      maxLength: 64
+      pattern: ^[A-Za-z][A-Za-z0-9_.-]{2,63}$
+      description: 登录名。字母开头，可含字母数字与 `_ . -`
+      examples:
+      - wyy
+    password:
+      type: string
+      format: password
+      minLength: 8
+      maxLength: 128
+      description: 密码至少 8 位，服务端使用 Argon2id 哈希存储。
+    display_name:
+      type: string
+      maxLength: 128
+      description: 显示名
+    email:
+      type: string
+      format: email
+      maxLength: 255
+    role:
+      $ref: '#/UserRole'
+      default: viewer
+    status: &id001
+      $ref: '#/UserStatus'
+      default: active
+    notes: &id002
+      type:
+      - string
+      - 'null'
+      description: 备注
+    account_purpose:
+      $ref: '#/AccountPurpose'
+      x-db-column: false
+      default: research
+  additionalProperties: false
+  x-python-methods:
+  - ''
+  - '    @model_validator(mode=''after'')'
+  - '    def role_purpose(self):'
+  - '        if self.role == ''admin'' and ''account_purpose'' not in self.model_fields_set:'
+  - '            self.account_purpose = ''management'''
+  - '        if not ((self.role == ''admin'' and self.account_purpose == ''management'') or (self.role in (''operator'', ''viewer'')
+    and self.account_purpose in (''research'', ''testing''))):'
+  - '            raise ValueError(''Account purpose must match role'')'
+  - '        return self'
+  if: &id003
+    properties:
+      role:
+        const: admin
+    required:
+    - role
+  then:
+    properties:
+      account_purpose:
+        const: management
+  else:
+    properties:
+      account_purpose:
+        enum:
+        - research
+        - testing
+UserUpdate:
+  type: object
+  description: 部分更新，可修改account_purpose。服务端将请求与已有角色/用途合并校验：admin必须management，operator/viewer必须research/testing，不匹配或role/status/account_purpose显式null返回422；改角色跨用途须同时提交匹配用途。角色、状态或用途变更撤销已有会话。
+  properties:
+    display_name:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+      description: 显示名
+      examples:
+      - 王某某
+    email:
+      type:
+      - string
+      - 'null'
+      format: email
+      maxLength: 255
+    role:
+      $ref: '#/UserRole'
+    status: *id001
+    notes: *id002
+    account_purpose:
+      $ref: '#/AccountPurpose'
+      x-db-column: false
+  additionalProperties: false
+  x-python-methods:
+  - ''
+  - '    @model_validator(mode=''after'')'
+  - '    def supplied_role_purpose(self):'
+  - '        if {''role'', ''account_purpose''} <= self.model_fields_set:'
+  - '            if not ((self.role == ''admin'' and self.account_purpose == ''management'') or (self.role in (''operator'',
+    ''viewer'') and self.account_purpose in (''research'', ''testing''))):'
+  - '                raise ValueError(''Account purpose must match role'')'
+  - '        return self'
+  if:
+    required:
+    - role
+    - account_purpose
+  then:
+    if: *id003
+    then:
+      properties:
+        account_purpose:
+          const: management
+    else:
+      properties:
+        account_purpose:
+          enum:
+          - research
+          - testing
+SetupStatus:
+  type: object
+  required:
+  - needs_setup
+  properties:
+    needs_setup:
+      type: boolean
+SetupRequest:
+  type: object
+  required:
+  - setup_code
+  - username
+  - password
+  properties:
+    setup_code:
+      type: string
+      minLength: 1
+      writeOnly: true
+    username:
+      type: string
+      minLength: 3
+      maxLength: 64
+      pattern: ^[A-Za-z][A-Za-z0-9_.-]{2,63}$
+      description: 登录名。字母开头，可含字母数字与 `_ . -`
+      examples:
+      - wyy
+    password:
+      type: string
+      format: password
+      minLength: 8
+      maxLength: 128
+      description: 密码至少 8 位，服务端使用 Argon2id 哈希存储。
+    display_name:
+      type: string
+      maxLength: 128
+      description: 显示名
+  description: 使用部署配置的 setup_code 创建首位管理员；仅首次初始化可用，初始化完成后拒绝重复调用。
+InvitationRole:
+  type: string
+  enum:
+  - viewer
+  - operator
+  default: viewer
+Invitation:
+  type: object
+  description: 邀请安全视图，不返回邀请码或其哈希。 用途只能research/testing，注册者继承邀请角色与用途。
+  required:
+  - invitation_id
+  - role
+  - created_by
+  - expires_at
+  - created_at
+  - account_purpose
+  properties:
+    invitation_id:
+      type: integer
+      format: int64
+    role:
+      $ref: '#/InvitationRole'
+    created_by:
+      type: integer
+      format: int64
+    expires_at:
+      type: string
+      format: date-time
+    used_by:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    used_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    revoked_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    created_at:
+      type: string
+      format: date-time
+    account_purpose:
+      $ref: '#/OrdinaryAccountPurpose'
+      x-db-column: invitations.account_purpose
+CreateInvitationRequest:
+  type: object
+  properties:
+    role:
+      $ref: '#/InvitationRole'
+      default: viewer
+    expires_in_hours:
+      type: integer
+      minimum: 1
+      maximum: 168
+      default: 72
+      x-python-strict: true
+    account_purpose:
+      $ref: '#/OrdinaryAccountPurpose'
+      x-db-column: false
+      default: research
+  additionalProperties: false
+CreateInvitationResponse:
+  allOf:
+  - $ref: '#/Invitation'
+  - type: object
+    required:
+    - invite_code
+    properties:
+      invite_code:
+        type: string
+        description: 仅创建时返回一次；列表与后续查询不再返回。
+AccountPurpose:
+  type: string
+  enum:
+  - management
+  - research
+  - testing
+  description: 账户用途独立于角色。admin固定management；operator/viewer只能research或testing。
+OrdinaryAccountPurpose:
+  type: string
+  enum:
+  - research
+  - testing
+  description: 普通账户及邀请用途；邀请不能创建management账户。
+Environment:
+  type: object
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      enum:
+      - production
+      - testing
+    label:
+      type: string
+    instance_id:
+      type: string
+  required:
+  - name
+  - label
+  - instance_id
+  description: 部署环境标识，只由ALE_ENVIRONMENT、ALE_ENVIRONMENT_LABEL、ALE_INSTANCE_ID配置提供，不能从账户用途推断。

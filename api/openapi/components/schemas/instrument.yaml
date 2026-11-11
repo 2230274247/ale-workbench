@@ -1,0 +1,674 @@
+InstrumentType:
+  type: string
+  enum:
+  - xps
+  - rga
+  - xrr
+  - afm
+  - sem
+  - sims
+  - other
+  description: '仪器类型。采用通用三层模型（数据集-通道-数据点），
+
+    使 XPS 的元素扫描与 RGA 的 m/z 通道共用同一套表，
+
+    新增仪器类型无需改表结构。
+
+    '
+  examples:
+  - xps
+SampleMappingStatus:
+  type: string
+  enum:
+  - resolved
+  - unresolved
+  - ambiguous
+  description: '数据集与样品的映射状态。
+
+    `unresolved` 表示映射关系尚未建立——例如 XPS 有 9 个测量
+
+    文件夹但只对应 4 组样品，对应关系未从数据中确立。
+
+    该状态使「悬空」在库中可见，不会因文档丢失而遗忘。
+
+    '
+  examples:
+  - unresolved
+InstrumentDataset:
+  type: object
+  required:
+  - dataset_id
+  - dataset_code
+  - instrument_type
+  - sample_mapping_status
+  properties:
+    dataset_id:
+      type: integer
+      format: int64
+    dataset_code:
+      type: string
+      maxLength: 96
+      examples:
+      - XPS-H2609100564-4DATA
+    instrument_type:
+      $ref: '#/InstrumentType'
+    tool_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    sample_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    process_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    measurement_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 若与某次椭偏测量对应同一阶段
+    batch_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    title:
+      type:
+      - string
+      - 'null'
+      maxLength: 255
+      examples:
+      - XPS Si2p/N1s/O1s/F1s 扫描
+    external_ref:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+      description: 仪器侧编号
+      examples:
+      - H2609100564/4.DATA
+    acquired_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    operator_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    source_file_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    acquisition_params:
+      type:
+      - object
+      - 'null'
+      additionalProperties: true
+      description: 采集参数（通能、阳极电压、束流等）
+    sample_mapping_status:
+      $ref: '#/SampleMappingStatus'
+    mapping_note:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+InstrumentDatasetDetail:
+  allOf:
+  - $ref: '#/InstrumentDataset'
+  - type: object
+    properties:
+      channels:
+        type: array
+        items:
+          $ref: '#/InstrumentChannel'
+    required: []
+InstrumentDatasetCreate:
+  type: object
+  required:
+  - dataset_code
+  - instrument_type
+  properties:
+    dataset_code:
+      type: string
+      maxLength: 96
+    instrument_type:
+      $ref: '#/InstrumentType'
+    tool_id:
+      type: integer
+      format: int64
+    sample_id:
+      type: integer
+      format: int64
+    process_id:
+      type: integer
+      format: int64
+    measurement_id:
+      type: integer
+      format: int64
+    batch_id:
+      type: integer
+      format: int64
+    title:
+      type: string
+    external_ref:
+      type: string
+    acquired_at:
+      type: string
+      format: date-time
+    source_file_id:
+      type: integer
+      format: int64
+    acquisition_params:
+      type: object
+      additionalProperties: true
+    sample_mapping_status:
+      $ref: '#/SampleMappingStatus'
+    mapping_note:
+      type: string
+InstrumentDatasetUpdate:
+  type: object
+  properties:
+    sample_id:
+      type: integer
+      format: int64
+    process_id:
+      type: integer
+      format: int64
+    measurement_id:
+      type: integer
+      format: int64
+    title:
+      type: string
+    external_ref:
+      type: string
+    acquired_at:
+      type: string
+      format: date-time
+    acquisition_params:
+      type: object
+      additionalProperties: true
+    sample_mapping_status:
+      $ref: '#/SampleMappingStatus'
+    mapping_note:
+      type: string
+ChannelType:
+  type: string
+  enum:
+  - spectrum
+  - survey
+  - peak
+  - ion_current
+  - image
+  description: '通道类型。
+
+    - `spectrum`    谱图（XPS 元素扫描、RGA 质量扫描）
+
+    - `survey`      全谱
+
+    - `peak`        单峰
+
+    - `ion_current` 离子流（RGA 单通道随时间）
+
+    - `image`       图像
+
+    '
+  examples:
+  - spectrum
+InstrumentChannel:
+  type: object
+  description: '仪器信号通道。
+
+    XPS：每个元素扫描是一个通道（Si2p / N1s / O1s / F1s）
+
+    RGA：每个 m/z 是一个通道
+
+    '
+  required:
+  - channel_id
+  - dataset_id
+  - channel_code
+  - channel_type
+  properties:
+    channel_id:
+      type: integer
+      format: int64
+    dataset_id:
+      type: integer
+      format: int64
+    channel_code:
+      type: string
+      maxLength: 64
+      examples:
+      - Si2p
+    channel_label:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+      examples:
+      - Si2p Scan
+    channel_type:
+      $ref: '#/ChannelType'
+    element:
+      type:
+      - string
+      - 'null'
+      maxLength: 16
+      description: 元素符号
+      examples:
+      - Si
+    transition:
+      type:
+      - string
+      - 'null'
+      maxLength: 32
+      description: 轨道
+      examples:
+      - 2p
+    mass_charge:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,5)
+      description: RGA 的 m/z
+      examples:
+      - '18.00000'
+    x_unit:
+      type:
+      - string
+      - 'null'
+      enum:
+      - binding_energy_eV
+      - kinetic_energy_eV
+      - mz
+      - angle_deg
+      - time_s
+      - null
+      examples:
+      - binding_energy_eV
+    y_unit:
+      type:
+      - string
+      - 'null'
+      enum:
+      - counts_per_s
+      - ion_current_A
+      - intensity
+      - null
+      examples:
+      - counts_per_s
+    peak_center:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(14,6)
+      description: 峰位（如 XPS 结合能 eV）
+      examples:
+      - '101.890000'
+    peak_height:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(18,6)
+      examples:
+      - '64230.130000'
+    fwhm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(14,6)
+      examples:
+      - '1.720000'
+    peak_area:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(18,6)
+      examples:
+      - '125014.350000'
+    extra_json:
+      type:
+      - object
+      - 'null'
+      additionalProperties: true
+      description: 仪器特有属性
+    created_at:
+      type: string
+      format: date-time
+    datapoints:
+      type: array
+      items:
+        $ref: '#/InstrumentDatapoint'
+InstrumentChannelCreate:
+  type: object
+  required:
+  - channel_code
+  - channel_type
+  properties:
+    channel_code:
+      type: string
+    channel_label:
+      type: string
+    channel_type:
+      $ref: '#/ChannelType'
+    element:
+      type: string
+    transition:
+      type: string
+    mass_charge:
+      type: string
+    x_unit:
+      type: string
+    y_unit:
+      type: string
+    peak_center:
+      type: string
+    peak_height:
+      type: string
+    fwhm:
+      type: string
+    peak_area:
+      type: string
+    extra_json:
+      type: object
+      additionalProperties: true
+    datapoints:
+      type: array
+      description: 可随通道一并提交数据点
+      items:
+        $ref: '#/InstrumentDatapointCreate'
+InstrumentDatapoint:
+  type: object
+  required:
+  - datapoint_id
+  - channel_id
+  - point_index
+  properties:
+    datapoint_id:
+      type: integer
+      format: int64
+    channel_id:
+      type: integer
+      format: int64
+    point_index:
+      type: integer
+      description: 点序号
+    x_value:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(18,8)
+      examples:
+      - '110.00000000'
+    y_value:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(24,8)
+      examples:
+      - '3046.75000000'
+InstrumentDatapointCreate:
+  type: object
+  required:
+  - point_index
+  properties:
+    point_index:
+      type: integer
+    x_value:
+      type: string
+    y_value:
+      type: string
+AttachmentType:
+  type: string
+  enum:
+  - figure
+  - origin_project
+  - pdf
+  - report
+  - script
+  - table
+  - other
+Attachment:
+  type: object
+  description: 附件登记（图、Origin 工程、报告等非结构化产出）。
+  required:
+  - attachment_id
+  - file_name
+  - attachment_type
+  - created_at
+  properties:
+    attachment_id:
+      type: integer
+      format: int64
+    file_sha256:
+      type:
+      - string
+      - 'null'
+      pattern: ^[a-f0-9]{64}$
+    file_name:
+      type: string
+      maxLength: 512
+    rel_path:
+      type:
+      - string
+      - 'null'
+      maxLength: 1024
+    attachment_type:
+      $ref: '#/AttachmentType'
+    entity_type:
+      $ref: '#/EntityType'
+    entity_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    mime_type:
+      type:
+      - string
+      - 'null'
+    size_bytes:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    description:
+      type:
+      - string
+      - 'null'
+    uploaded_by:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    created_at:
+      type: string
+      format: date-time
+AttachmentCreate:
+  type: object
+  required:
+  - file_name
+  - attachment_type
+  properties:
+    file_sha256:
+      type: string
+      pattern: ^[a-f0-9]{64}$
+    file_name:
+      type: string
+      maxLength: 512
+    rel_path:
+      type: string
+    attachment_type:
+      $ref: '#/AttachmentType'
+    entity_type:
+      $ref: '#/EntityType'
+    entity_id:
+      type: integer
+      format: int64
+    mime_type:
+      type: string
+    size_bytes:
+      type: integer
+      format: int64
+    description:
+      type: string
+DashboardSummary:
+  type: object
+  description: 首页概况统计。
+  required:
+  - generated_at
+  properties:
+    generated_at:
+      type: string
+      format: date-time
+    batch_count:
+      type: integer
+      examples:
+      - 4
+    sample_count:
+      type: integer
+      examples:
+      - 47
+    sample_excluded_count:
+      type: integer
+      description: 被排除出分析的样品数
+      examples:
+      - 1
+    process_count:
+      type: integer
+      examples:
+      - 12
+    measurement_count:
+      type: integer
+      description: 当前有效测量数（不含被取代）
+      examples:
+      - 63
+    derived_result_count:
+      type: integer
+      examples:
+      - 18
+    source_file_count:
+      type: integer
+      examples:
+      - 312
+    instrument_dataset_count:
+      type: integer
+      examples:
+      - 9
+    open_issue_count:
+      type: integer
+      description: 未关闭问题数
+      examples:
+      - 7
+    open_issue_high_count:
+      type: integer
+      description: 高优先级未关闭问题数
+      examples:
+      - 3
+    finding_count:
+      type: integer
+      examples:
+      - 7
+    finding_hypothesis_count:
+      type: integer
+      description: 仍为机理假设（未证实）的结论数
+      examples:
+      - 1
+DashboardRecentActivity:
+  type: object
+  properties:
+    recent_samples:
+      type: array
+      items:
+        $ref: '#/SampleBrief'
+    recent_processes:
+      type: array
+      items:
+        $ref: '#/ProcessBrief'
+    recent_measurements:
+      type: array
+      items:
+        $ref: '#/MeasurementBrief'
+DashboardUpcomingPlan:
+  type: object
+  properties:
+    plan_id:
+      type: integer
+      format: int64
+    plan_code:
+      type: string
+    title:
+      type: string
+    planned_start:
+      type:
+      - string
+      - 'null'
+      format: date
+    planned_end:
+      type:
+      - string
+      - 'null'
+      format: date
+    priority:
+      $ref: '#/PlanPriority'
+    status:
+      $ref: '#/PlanStatus'
+    owner:
+      $ref: '#/UserBrief'
+DataQualityAlert:
+  type: object
+  description: '数据质量提示。服务端主动识别的问题，例如：
+
+    跨模型相减的结果、高 MSE 测点、被取代的基线、
+
+    悬空的样品映射。用于首页提醒。
+
+    '
+  required:
+  - alert_type
+  - severity
+  - message
+  properties:
+    alert_type:
+      type: string
+      enum:
+      - cross_model_comparison
+      - high_mse_measurement
+      - superseded_baseline
+      - unresolved_instrument_mapping
+      - excluded_sample_used
+      - missing_intermediate_measurement
+      - model_inconsistent_derived
+    severity:
+      type: string
+      enum:
+      - high
+      - medium
+      - low
+    message:
+      type: string
+      description: 面向用户的说明（中文）
+    entity_type:
+      $ref: '#/EntityType'
+    entity_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    entity_code:
+      type:
+      - string
+      - 'null'
+      description: 实体编码，便于前端跳转
+      examples:
+      - RES-W01-S01-R100
