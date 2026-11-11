@@ -1,6 +1,13 @@
 # ALE 工作台开发进度
 
 
+## 2026-11-11 阶段 10 仓库整理与 GitHub 托管
+- 新建 `.gitignore` 独立规则：排除 `.env / .appcreds / .dbcreds / .setup-code / .ai-master-key`、`mysql_data/`、`mysql-server/`、`storage*/`、`backups/`、`reports/`、`logs*/`、`node_modules/`、`frontend/dist/`、虚拟环境、`.claude/`、`.workbuddy/`；首次提交 278 文件 / 120502 行，暂存扫描无明文密钥。
+- 新增 `README.md`（功能、技术栈、目录、七步上手、配置表、测试、安全边界）、`docs/配置与部署.md`（环境变量、凭据格式、建库与迁移顺序、端口、手机访问、故障表、备份、升级、提交自检）、`backend/.env.example`、`database/.dbcreds.example`、`database/.appcreds.example`；`vite.config.ts` 开发代理 8000→8001 与启动器默认端口对齐。
+- GitHub 私有仓库 `2230274247/ale-workbench` 已建，main 分支 278 文件与本地 tree SHA 完全一致（`51076428b65b59eafb4254ce559ee8a4fee1be8f`）。本机代理拦截 github.com:443（api.github.com 与 codeload 可通、github.com 直连与代理均失败），推送改走 Git Data API 写入；因 GitHub 将作者时间归一到 UTC，远端 commit SHA 与本地不同但树相同。后续本机恢复对 github.com 的访问后，首次 `git push` 需执行一次 `git push -f origin main`（内容一致，仅历史 SHA 不同）。
+- 仓库保持 private；`reports/`、原始文件与数据库均未上传。
+
+
 ## 2026-11-11 阶段 9 移动网页版（/m 独立入口，电脑版零回归）
 - 用户要求新增手机网页版并保留升级 App/小程序的路径，明确**不推翻现有电脑版**。新增并列入口 `/m`：独立 `frontend/src/mobile/`（MobileShell + 快录/历史/数据集/我的 四视图 + mobile.css，`m-` 前缀样式），共用同一 `/api/v1`、登录态与数据库；桌面版仅页脚加「手机版入口」链接。
 - 手机快录：单列卡片、A/B/C 三源卡、ΔP 单值/区间、净减薄与 EPC 实时推算、存草稿/保存记录；编辑已有记录时只改第一组前 3 步，多余组/步骤保存时原样带回（防覆盖电脑端复杂结构）。历史为卡片列表+筛选+加载更多；数据集含导出、批量导入（上传原表→预览→勾选确认）与体检摘要（eligible_count/training_status/unit_audit）。
