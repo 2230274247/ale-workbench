@@ -1,0 +1,5 @@
+export interface Item { item_id:number;filename:string;sha256:string;status:string;parse_result:any;suggestions:any;result:any;confirmation:any }
+export interface Job { job_id:number;row_version:number;status:string;created_at:string;items:Item[] }
+export interface Choice { selected:boolean;action:''|'import'|'original_only'|'skip';sample_id:string;process_id:string;stage:string;stage_seq:string;measured_at:string;measurement_code:string;optical_model_id:string;pair_measurement_id:string;confirm_units:boolean;confirm_associations:boolean;confirm_duplicate:boolean;duplicate_reason:string;notes:string }
+export const blankChoice=():Choice=>({selected:false,action:'',sample_id:'',process_id:'',stage:'',stage_seq:'',measured_at:'',measurement_code:'',optical_model_id:'',pair_measurement_id:'',confirm_units:false,confirm_associations:false,confirm_duplicate:false,duplicate_reason:'',notes:''})
+export const canImport=(item:Item)=>!!item.parse_result?.blocks?.length && !item.parse_result?.blocking_issues?.length && !item.parse_result.blocks.some((b:any)=>b.blocking_issues?.length) && !['original_only','rejected'].includes(item.parse_result?.status)

@@ -1,0 +1,587 @@
+SystemStatus:
+  type: string
+  enum:
+  - active
+  - superseded
+  - experimental
+  description: 化学体系状态；与 chemistry_systems.status 的 CHECK 约束一致。
+SpeciesRole:
+  type: string
+  enum:
+  - precursor
+  - reactant
+  - purge
+  - carrier
+  - other
+  description: 物种在体系中的角色；与 chemistry_species.role 的 CHECK 约束一致。
+TemplateParameter:
+  type: object
+  additionalProperties: false
+  description: 模板步骤的参数定义，仅声明 key/label/unit，不含取值。
+  required:
+  - key
+  - label
+  properties:
+    key:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: ^[A-Za-z0-9_]+$
+    label:
+      type: string
+      minLength: 1
+      maxLength: 64
+    unit:
+      anyOf:
+      - maxLength: 24
+        type: string
+      - type: 'null'
+      default: null
+TemplateStep:
+  type: object
+  additionalProperties: false
+  description: 可复用模板中的一个步骤；数组顺序即步骤顺序。
+  required:
+  - name
+  - kind
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 128
+    kind:
+      type: string
+      minLength: 1
+      maxLength: 32
+    loop_count:
+      anyOf:
+      - minimum: 1
+        maximum: 100000
+        type: integer
+      - type: 'null'
+      default: null
+    parameters:
+      type: array
+      maxItems: 32
+      items:
+        $ref: '#/TemplateParameter'
+ChemistrySpecies:
+  type: object
+  description: 化学体系下的物种（前驱体/反应物/吹扫/载气等）。
+  required:
+  - species_id
+  - system_id
+  - species_code
+  - species_name
+  - role
+  properties:
+    species_id:
+      type: integer
+      format: int64
+      readOnly: true
+    system_id:
+      type: integer
+      format: int64
+      readOnly: true
+    species_code:
+      type: string
+      maxLength: 64
+      examples:
+      - O3
+    species_name:
+      type: string
+      maxLength: 255
+    formula:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    role:
+      $ref: '#/SpeciesRole'
+    default_unit:
+      anyOf:
+      - maxLength: 24
+        type: string
+      - type: 'null'
+      default: null
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+ChemistryStepTemplate:
+  type: object
+  description: 可复用步骤模板；steps 为有序 JSON 数组，至少 1 条。
+  required:
+  - template_id
+  - system_id
+  - template_code
+  - template_name
+  - steps
+  properties:
+    template_id:
+      type: integer
+      format: int64
+      readOnly: true
+    system_id:
+      type: integer
+      format: int64
+      readOnly: true
+    template_code:
+      type: string
+      maxLength: 64
+    template_name:
+      type: string
+      maxLength: 255
+    description:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    steps:
+      type: array
+      minItems: 1
+      maxItems: 200
+      items:
+        $ref: '#/TemplateStep'
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+    updated_at:
+      type: string
+      format: date-time
+      readOnly: true
+ChemistrySystem:
+  type: object
+  description: 通用化学体系。详情响应额外内嵌 species[]、templates[] 与 owner。
+  required:
+  - system_id
+  - system_code
+  - system_name
+  - status
+  - row_version
+  properties:
+    system_id:
+      type: integer
+      format: int64
+      readOnly: true
+    system_code:
+      type: string
+      maxLength: 64
+      examples:
+      - SIN-ALE
+    system_name:
+      type: string
+      maxLength: 255
+    description:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    status:
+      $ref: '#/SystemStatus'
+    owner_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      readOnly: true
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本；更新体系或其子记录时递增。
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+    updated_at:
+      type: string
+      format: date-time
+      readOnly: true
+    species:
+      type: array
+      items:
+        $ref: '#/ChemistrySpecies'
+    templates:
+      type: array
+      items:
+        $ref: '#/ChemistryStepTemplate'
+    owner:
+      anyOf:
+      - $ref: '#/UserBrief'
+      - type: 'null'
+      default: null
+ChemistrySystemCreate:
+  type: object
+  additionalProperties: false
+  description: 创建化学体系；owner_user_id 由服务端确定。
+  required:
+  - system_code
+  - system_name
+  properties:
+    system_code:
+      type: string
+      minLength: 1
+      maxLength: 64
+    system_name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    description:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    status:
+      $ref: '#/SystemStatus'
+ChemistrySystemUpdate:
+  type: object
+  additionalProperties: false
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）。
+  properties:
+    system_name:
+      anyOf:
+      - minLength: 1
+        maxLength: 255
+        type: string
+      - type: 'null'
+      default: null
+    description:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    status:
+      $ref: '#/SystemStatus'
+    expected_row_version:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      default: null
+      description: 可选且可为 null；非 null 时匹配当前 row_version，否则 409。
+SpeciesCreate:
+  type: object
+  additionalProperties: false
+  description: 在指定体系下创建物种；species_code 在体系内唯一。
+  required:
+  - species_code
+  - species_name
+  - role
+  properties:
+    species_code:
+      type: string
+      minLength: 1
+      maxLength: 64
+    species_name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    formula:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    role:
+      $ref: '#/SpeciesRole'
+    default_unit:
+      anyOf:
+      - maxLength: 24
+        type: string
+      - type: 'null'
+      default: null
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+SpeciesUpdate:
+  type: object
+  additionalProperties: false
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）。
+  properties:
+    species_name:
+      anyOf:
+      - minLength: 1
+        maxLength: 255
+        type: string
+      - type: 'null'
+      default: null
+    formula:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+    role:
+      $ref: '#/SpeciesRole'
+    default_unit:
+      anyOf:
+      - maxLength: 24
+        type: string
+      - type: 'null'
+      default: null
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    expected_row_version:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      default: null
+      description: 可选且可为 null；非 null 时匹配体系 row_version，否则 409。
+TemplateCreate:
+  type: object
+  additionalProperties: false
+  description: 在指定体系下创建步骤模板；template_code 在体系内唯一，steps 至少 1 条。
+  required:
+  - template_code
+  - template_name
+  - steps
+  properties:
+    template_code:
+      type: string
+      minLength: 1
+      maxLength: 64
+    template_name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    description:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    steps:
+      type: array
+      minItems: 1
+      maxItems: 200
+      items:
+        $ref: '#/TemplateStep'
+TemplateUpdate:
+  type: object
+  additionalProperties: false
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）。
+  properties:
+    template_name:
+      anyOf:
+      - minLength: 1
+        maxLength: 255
+        type: string
+      - type: 'null'
+      default: null
+    description:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+    steps:
+      type: array
+      minItems: 1
+      maxItems: 200
+      items:
+        $ref: '#/TemplateStep'
+    expected_row_version:
+      anyOf:
+      - minimum: 1
+        type: integer
+      - type: 'null'
+      default: null
+      description: 可选且可为 null；非 null 时匹配体系 row_version，否则 409。
+ParameterField:
+  additionalProperties: false
+  properties:
+    name:
+      maxLength: 128
+      minLength: 1
+      type: string
+    value:
+      anyOf:
+      - maxLength: 2000
+        type: string
+      - type: 'null'
+      default: null
+    unit:
+      anyOf:
+      - maxLength: 32
+        type: string
+      - type: 'null'
+      default: null
+  required:
+  - name
+  type: object
+  x-python-strip-whitespace: true
+  x-python-definition: "class ParameterField(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)\n\
+    \    name: Annotated[str, Field(min_length=1, max_length=128)]\n    value: Annotated[str, Field(max_length=2000)] | None\
+    \ = None\n    unit: Annotated[str, Field(max_length=32)] | None = None"
+ParameterGroup:
+  additionalProperties: false
+  properties:
+    name:
+      maxLength: 128
+      minLength: 1
+      type: string
+    fields:
+      items:
+        $ref: '#/ParameterField'
+      maxItems: 64
+      type: array
+      default: []
+  required:
+  - name
+  type: object
+  x-python-strip-whitespace: true
+  x-unique-list-key:
+    field: fields
+    key: name
+  x-python-definition: "class ParameterGroup(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)\n\
+    \    name: Annotated[str, Field(min_length=1, max_length=128)]\n    fields: Annotated[list[ParameterField], Field(max_length=64)]\
+    \ = Field(default_factory=list)\n\n    @field_validator('fields')\n    @classmethod\n    def unique_fields(cls, fields):\n\
+    \        if len({f.name for f in fields}) != len(fields):\n            raise ValueError('Field names must be unique within\
+    \ a group')\n        return fields"
+Temperature:
+  additionalProperties: false
+  properties:
+    value:
+      anyOf:
+      - maxLength: 2000
+        type: string
+      - type: 'null'
+      default: null
+    unit:
+      default: °C
+      maxLength: 32
+      minLength: 1
+      type: string
+  type: object
+  x-python-strip-whitespace: true
+  x-python-definition: "class Temperature(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)\n\
+    \    value: Annotated[str, Field(max_length=2000)] | None = None\n    unit: Annotated[str, Field(min_length=1, max_length=32)]\
+    \ = '°C'"
+ParameterSnapshot:
+  additionalProperties: false
+  properties:
+    step_type:
+      maxLength: 128
+      minLength: 1
+      type: string
+    temperature:
+      $ref: '#/Temperature'
+      default:
+        value: null
+        unit: °C
+    groups:
+      items:
+        $ref: '#/ParameterGroup'
+      maxItems: 32
+      type: array
+      default: []
+  required:
+  - step_type
+  type: object
+  x-python-strip-whitespace: true
+  x-unique-list-key:
+    field: groups
+    key: name
+  x-python-definition: "class ParameterSnapshot(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)\n\
+    \    step_type: Annotated[str, Field(min_length=1, max_length=128)]\n    temperature: Temperature = Field(default_factory=Temperature)\n\
+    \    groups: Annotated[list[ParameterGroup], Field(max_length=32)] = Field(default_factory=list)\n\n    @model_validator(mode='after')\n\
+    \    def bounded_payload(self):\n        if sum(len(g.fields) for g in self.groups) > 256:\n            raise ValueError('A\
+    \ snapshot supports at most 256 parameter cells')\n        if len(self.model_dump_json().encode('utf-8')) > 65536:\n \
+    \           raise ValueError('A snapshot supports at most 64 KiB')\n        return self\n\n    @field_validator('groups')\n\
+    \    @classmethod\n    def unique_groups(cls, groups):\n        if len({g.name for g in groups}) != len(groups):\n   \
+    \         raise ValueError('Group names must be unique')\n        return groups"
+StepParameterTemplateCreate:
+  additionalProperties: false
+  properties:
+    template_name:
+      maxLength: 128
+      minLength: 1
+      type: string
+    definition:
+      $ref: '#/ParameterSnapshot'
+  required:
+  - template_name
+  - definition
+  type: object
+  x-python-strip-whitespace: true
+StepParameterTemplateUpdate:
+  additionalProperties: false
+  properties:
+    expected_row_version:
+      minimum: 1
+      type: integer
+      x-python-strict: true
+    template_name:
+      maxLength: 128
+      minLength: 1
+      type: string
+    definition:
+      $ref: '#/ParameterSnapshot'
+  required:
+  - expected_row_version
+  type: object
+  x-python-strip-whitespace: true
+StepParameterTemplate:
+  type: object
+  description: 独立通用步骤参数模板；definition 为 JSON 快照，编辑模板不会改变已保存步骤。
+  required:
+  - template_id
+  - template_name
+  - definition
+  - owner_user_id
+  - row_version
+  - created_at
+  - updated_at
+  properties:
+    template_id:
+      type: integer
+      x-db-column: step_parameter_templates.template_id
+      readOnly: true
+    template_name:
+      type: string
+      minLength: 1
+      maxLength: 128
+      x-db-column: step_parameter_templates.template_name
+    definition:
+      $ref: '#/ParameterSnapshot'
+      x-db-column: step_parameter_templates.definition
+    owner_user_id:
+      type: integer
+      x-db-column: step_parameter_templates.owner_user_id
+      readOnly: true
+    row_version:
+      type: integer
+      minimum: 1
+      x-db-column: step_parameter_templates.row_version
+      readOnly: true
+    created_at:
+      type: string
+      format: date-time
+      x-db-column: step_parameter_templates.created_at
+      readOnly: true
+    updated_at:
+      type: string
+      format: date-time
+      x-db-column: step_parameter_templates.updated_at
+      readOnly: true

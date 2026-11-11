@@ -1,0 +1,16 @@
+# 应用数据库账号凭据示例：复制为 database/.appcreds。
+# 正常流程由 database/apply_schema.py 自动生成随机强密码并写入，无需手填。
+# 只有接入已有数据库实例时才手工创建。该文件已被 .gitignore 排除，切勿提交。
+[ale_app]
+user=ale_app
+password=替换为强密码
+host=127.0.0.1
+port=3307
+database=ale_workbench
+
+[ale_ro]
+user=ale_ro
+password=替换为强密码
+host=127.0.0.1
+port=3307
+database=ale_workbench

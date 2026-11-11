@@ -1,0 +1,45 @@
+# =====================================================================
+# ALE 实验工作台 · 图表模块 Schema
+# =====================================================================
+
+ChartType:
+  type: string
+  enum: [bar, line, scatter, mapping, histogram, box, radar]
+  description: |
+    图表类型。
+    - `bar`       柱状图
+    - `line`      折线图（膜厚随循环次数）
+    - `scatter`   散点图
+    - `mapping`   空间分布图（膜厚 Mapping，按 x/y 坐标着色）
+    - `histogram` 直方图
+    - `box`       箱线图
+    - `radar`     雷达图
+  examples: ["mapping"]
+
+ChartTemplate:
+  type: object
+  description: 预置图表模板。前端可直接按模板渲染，无需自行拼装数据结构。
+  required: [template_code, name, chart_type, data_source]
+  properties:
+    template_code:
+      type: string
+      examples: ["THICKNESS_VS_CYCLES"]
+    name:
+      type: string
+      examples: ["膜厚随循环次数"]
+    description:
+      type:
+      - string
+      - 'null'
+    chart_type:
+      $ref: '#/ChartType'
+    data_source:
+      type: string
+      description: 数据来源标识（对应各数据接口）
+      examples: ["measurement_series"]
+    required_params:
+      type: array
+      description: 该模板必填的参数名
+      items:
+        type: string
+      examples: [["sample_ids"]]

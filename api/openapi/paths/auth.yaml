@@ -1,0 +1,510 @@
+# =====================================================================
+# 认证与用户模块接口
+# 基础路径: /api/v1
+# 对应表: users, audit_log
+# =====================================================================
+
+/api/v1/auth/register:
+  post:
+    tags: [认证]
+    summary: 注册新用户
+    description: |-
+      必须使用未过期、未撤销、未使用的邀请码注册；角色来自邀请，邀请默认 viewer；不接受自行指定角色。
+    operationId: registerUser
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/RegisterRequest'
+    responses:
+      '201':
+        description: 注册成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '../openapi.yaml#/components/schemas/ApiEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '../openapi.yaml#/components/schemas/User'
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+
+    x-implementation-status: implemented
+/api/v1/auth/login:
+  post:
+    tags: [认证]
+    summary: 用户登录
+    description: |-
+      Argon2id 验证密码，返回 access JWT（1 小时）与 refresh JWT（7 天），建立数据库会话并设置 HttpOnly SameSite=Strict refresh cookie（HTTPS 使用 Secure）。
+    operationId: login
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/LoginRequest'
+    responses:
+      '200':
+        description: 登录成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '../openapi.yaml#/components/schemas/ApiEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '../openapi.yaml#/components/schemas/LoginResponse'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+
+    x-implementation-status: implemented
+/api/v1/auth/refresh:
+  post:
+    tags: [认证]
+    summary: 刷新访问令牌
+    description: JSON body 可省略；refresh_token 缺省时使用 HttpOnly SameSite=Strict cookie。显式 token 优先，验证失败不会回退。 
+      每次刷新轮换令牌并使旧 refresh 失效；响应更新 cookie。
+    operationId: refreshToken
+    security: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/RefreshRequest'
+    responses:
+      '200':
+        description: 刷新成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '../openapi.yaml#/components/schemas/ApiEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '../openapi.yaml#/components/schemas/TokenPair'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+
+    x-implementation-status: implemented
+/api/v1/auth/logout:
+  post:
+    tags: [认证]
+    summary: 登出
+    description: 撤销当前数据库会话（access 与 refresh 均失效），清除 refresh cookie。
+    operationId: logout
+    responses:
+      '200':
+        $ref: '../openapi.yaml#/components/responses/Success'
+
+    x-implementation-status: implemented
+/api/v1/auth/me:
+  get:
+    tags: [认证]
+    summary: 获取当前登录用户
+    description: |
+      返回当前用户信息、权限列表与数据可见范围。
+      前端据此控制菜单与按钮显隐。
+    operationId: getCurrentUser
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '../openapi.yaml#/components/schemas/ApiEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '../openapi.yaml#/components/schemas/CurrentUser'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+
+    x-implementation-status: implemented
+/api/v1/auth/password:
+  put:
+    tags: [认证]
+    summary: 修改自己的密码
+    operationId: changePassword
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/ChangePasswordRequest'
+    responses:
+      '200':
+        $ref: '../openapi.yaml#/components/responses/Success'
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+
+# ---------------------------------------------------------------------
+# 用户管理（仅 admin）
+# ---------------------------------------------------------------------
+    description: 验证旧密码后修改密码，使用 Argon2id 存储并撤销该用户全部会话，需重新登录。
+    x-implementation-status: implemented
+/api/v1/users:
+  get:
+    tags: [用户管理]
+    summary: 用户列表
+    description: 仅管理员可访问。
+    operationId: listUsers
+    parameters:
+    - $ref: '../openapi.yaml#/components/parameters/PageParam'
+    - $ref: '../openapi.yaml#/components/parameters/SizeParam'
+    - $ref: '../openapi.yaml#/components/parameters/SortParam'
+    - $ref: '../openapi.yaml#/components/parameters/KeywordParam'
+    - name: role
+      in: query
+      description: 按角色筛选
+      schema:
+        $ref: '../openapi.yaml#/components/schemas/UserRole'
+    - name: status
+      in: query
+      description: 按状态筛选
+      schema:
+        $ref: '../openapi.yaml#/components/schemas/UserStatus'
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '../openapi.yaml#/components/schemas/ApiEnvelope'
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '../openapi.yaml#/components/schemas/User'
+                  meta:
+                    $ref: '../openapi.yaml#/components/schemas/PageMeta'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+    x-implementation-status: implemented
+  post:
+    tags: [用户管理]
+    summary: 创建用户
+    description: 仅管理员可访问。可直接指定角色。
+    operationId: createUser
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/CreateUserRequest
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '../openapi.yaml#/components/schemas/ApiEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '../openapi.yaml#/components/schemas/User'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+
+    x-implementation-status: implemented
+/api/v1/users/{id}:
+  get:
+    tags: [用户管理]
+    summary: 用户详情
+    operationId: getUser
+    parameters:
+    - $ref: '../openapi.yaml#/components/parameters/IdPathParam'
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '../openapi.yaml#/components/schemas/ApiEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '../openapi.yaml#/components/schemas/User'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+    x-implementation-status: implemented
+  patch:
+    tags: [用户管理]
+    summary: 更新用户
+    description: 仅管理员可访问。可修改显示名、邮箱、角色、状态。
+    operationId: updateUser
+    parameters:
+    - $ref: '../openapi.yaml#/components/parameters/IdPathParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/UserUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '../openapi.yaml#/components/schemas/ApiEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '../openapi.yaml#/components/schemas/User'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+    x-implementation-status: implemented
+  delete:
+    tags: [用户管理]
+    summary: 停用用户
+    description: |-
+      仅管理员。软停用 status=disabled，保留历史记录，并撤销该用户全部数据库会话。
+    operationId: disableUser
+    parameters:
+    - $ref: '../openapi.yaml#/components/parameters/IdPathParam'
+    responses:
+      '204':
+        description: 已停用
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+
+    x-implementation-status: implemented
+/api/v1/users/{id}/password:
+  put:
+    tags: [用户管理]
+    summary: 重置指定用户密码
+    description: 仅管理员重置密码，无需旧密码；Argon2id 存储并撤销目标用户全部会话。
+    operationId: resetUserPassword
+    parameters:
+    - $ref: '../openapi.yaml#/components/parameters/IdPathParam'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [new_password]
+            properties:
+              new_password:
+                type: string
+                format: password
+                minLength: 8
+    responses:
+      '200':
+        $ref: '../openapi.yaml#/components/responses/Success'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+
+# ---------------------------------------------------------------------
+# 审计日志（仅 admin）
+# ---------------------------------------------------------------------
+    x-implementation-status: implemented
+/api/v1/audit-logs:
+  get:
+    tags: [用户管理]
+    summary: 审计日志列表
+    description: 仅管理员可访问。用于追溯"这个数值是谁改的、什么时候改的"。
+    operationId: listAuditLogs
+    parameters:
+    - $ref: '../openapi.yaml#/components/parameters/PageParam'
+    - $ref: '../openapi.yaml#/components/parameters/SizeParam'
+    - name: user_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+    - name: action
+      in: query
+      schema:
+        $ref: '../openapi.yaml#/components/schemas/AuditAction'
+    - name: entity_type
+      in: query
+      schema:
+        type: string
+    - name: entity_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+    - name: date_from
+      in: query
+      schema:
+        type: string
+        format: date-time
+    - name: date_to
+      in: query
+      schema:
+        type: string
+        format: date-time
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: '../openapi.yaml#/components/schemas/ApiEnvelope'
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '../openapi.yaml#/components/schemas/AuditLog'
+                  meta:
+                    $ref: '../openapi.yaml#/components/schemas/PageMeta'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+    x-implementation-status: planned
+/api/v1/auth/setup-status:
+  get:
+    tags:
+    - 认证
+    summary: 检查是否需要初始化
+    operationId: getSetupStatus
+    security: []
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/SetupStatus
+    x-implementation-status: implemented
+/api/v1/auth/setup:
+  post:
+    tags:
+    - 认证
+    summary: 初始化首位管理员
+    description: 使用部署配置的 setup_code 创建首位管理员；仅首次初始化可用，初始化完成后拒绝重复调用。
+    operationId: setupAdmin
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/SetupRequest
+    responses:
+      '201':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/User
+      '400':
+        $ref: ../openapi.yaml#/components/responses/BadRequest
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/invitations:
+  get:
+    tags:
+    - 用户管理
+    summary: 邀请列表
+    description: 仅管理员，分页返回安全视图；不返回 invite_code。
+    operationId: listInvitations
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                - meta
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Invitation
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+    x-implementation-status: implemented
+  post:
+    tags:
+    - 用户管理
+    summary: 创建一次性邀请
+    description: 仅管理员；角色默认 viewer，可选 operator；invite_code 仅此响应返回一次。data 为邀请字段及 invite_code 的平铺对象。
+    operationId: createInvitation
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/CreateInvitationRequest
+    responses:
+      '201':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/CreateInvitationResponse
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+    x-implementation-status: implemented
+/api/v1/invitations/{id}:
+  delete:
+    tags:
+    - 用户管理
+    summary: 撤销邀请
+    description: 仅管理员，设置 revoked_at，使未使用邀请码失效；保留邀请记录。
+    operationId: revokeInvitation
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已撤销
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: implemented

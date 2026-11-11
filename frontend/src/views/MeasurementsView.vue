@@ -1,0 +1,128 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import SamplePicker from '../components/SamplePicker.vue'
+import PageHeading from '../components/PageHeading.vue'
+import FormSection from '../components/FormSection.vue'
+import StatePanel from '../components/StatePanel.vue'
+import { api, ApiError, downloadSource, errorText } from '../api'
+import { useAuth } from '../auth'
+import { useDraftGuard } from '../experiments/model'
+import { type MeasurementRow, stages, qualities, text, json, positiveId, time } from '../measurements/model'
+const route=useRoute(), router=useRouter(), auth=useAuth()
+const filters=reactive({sample_id:'',process_id:'',stage:'',current:'',quality:'',sort:'-created_at'})
+const processOptions=ref<any[]>([]),processSearchError=ref('')
+async function loadProcesses(keyword=''){try{processSearchError.value='';processOptions.value=(await api<any[]>('/processes',{query:{keyword,size:200}})).data;const id=Number(filters.process_id);if(id&&!processOptions.value.some(p=>p.process_id===id)){const r=await api<any>(`/processes/${id}`);processOptions.value.unshift({...r.data,plan_title:r.data.plan?.title})}}catch(e){processSearchError.value=errorText(e)}}
+const applied=ref<Record<string,unknown>>({}), page=ref(1), size=ref(20), total=ref(0), rows=ref<MeasurementRow[]>([]), loading=ref(false), listError=ref('')
+const selected=ref<MeasurementRow|null>(null), detailLoading=ref(false), detailError=ref(''), requestedId=ref<number>(), idInput=ref('')
+const quality=ref('ok'), note=ref(''), reason=ref(''), saving=ref(false), saveError=ref(''), conflict=ref(false), downloadBusy=ref(false), downloadError=ref(''), downloadId=ref<number>()
+const candidates=ref<MeasurementRow[]>([]), candidatePage=ref(1), candidateTotal=ref(0), candidateLoading=ref(false), candidateError=ref(''), candidateId=ref(''), candidate=ref<MeasurementRow|null>(null)
+const confirmation=ref<{old:MeasurementRow;replacement:MeasurementRow;reason:string}|null>(null), acknowledged=ref(false), checking=ref(false)
+let listSeq=0, detailSeq=0, candidateSeq=0
+const busy=computed(()=>saving.value||checking.value||detailLoading.value)
+const qualityDirty=computed(()=>!!selected.value&&(quality.value!==selected.value.quality_flag||note.value!==(selected.value.quality_note??'')))
+const dirty=()=>qualityDirty.value||!!reason.value.trim()||!!confirmation.value
+const guard=useDraftGuard(dirty,()=>busy.value)
+const editable=computed(()=>auth.canWrite&&!!selected.value&&!busy.value)
+const points=computed(()=>selected.value?.points??[])
+const sources=computed(()=>[...new Set([selected.value?.source_file_id,...points.value.map(p=>p.source_file_id)].filter((v):v is number=>typeof v==='number'))])
+function resetDraft(row:MeasurementRow){quality.value=row.quality_flag;note.value=row.quality_note??'';reason.value='';candidate.value=null;candidateId.value='';confirmation.value=null;acknowledged.value=false;conflict.value=false;saveError.value=''}
+async function loadList(){const n=++listSeq;loading.value=true;listError.value='';try{const r=await api<MeasurementRow[]>('/measurements',{query:{...applied.value,page:page.value,size:size.value}});if(n===listSeq){rows.value=r.data;total.value=r.meta?.total??r.data.length}}catch(e){if(n===listSeq)listError.value=errorText(e)}finally{if(n===listSeq)loading.value=false}}
+async function search(){try{applied.value={sample_id:positiveId(filters.sample_id,'样品 ID'),process_id:positiveId(filters.process_id,'执行 ID'),stage:filters.stage,current:filters.current===''?undefined:filters.current==='true',quality:filters.quality,sort:filters.sort};page.value=1;await loadList()}catch(e){listError.value=errorText(e)}}
+async function loadDetail(id:number, preserve=false){const n=++detailSeq;requestedId.value=id;detailLoading.value=true;detailError.value='';confirmation.value=null;acknowledged.value=false;candidateSeq++;candidateLoading.value=false;if(!preserve)selected.value=null;try{const r=await api<MeasurementRow>(`/measurements/${id}`);if(n!==detailSeq)return;selected.value=r.data;if(!preserve)resetDraft(r.data);else{conflict.value=false;saveError.value='已读取最新版本，质量输入已保留，请核对后保存。'}candidatePage.value=1;await loadCandidates()}catch(e){if(n===detailSeq)detailError.value=errorText(e)}finally{if(n===detailSeq)detailLoading.value=false}}
+async function choose(id:number){if(busy.value)return;if(String(route.query.id??route.query.measurement_id)===String(id)){if(await guard.discard())await loadDetail(id);return}await router.push({path:route.path,query:{...route.query,id:String(id),measurement_id:undefined}})}
+async function openId(){try{const id=positiveId(idInput.value,'测量 ID');if(!id)throw new Error('请填写测量 ID');if(String(route.query.id??route.query.measurement_id)===String(id)){if(await guard.discard())await loadDetail(id)}else await choose(id)}catch(e){detailError.value=errorText(e)}}
+async function refreshDetail(){if(!requestedId.value||!await guard.discard())return;await loadDetail(requestedId.value)}
+async function reloadVersion(){if(!selected.value||busy.value)return;await loadDetail(selected.value.measurement_id,true)}
+async function loadCandidates(){const old=selected.value;if(!old)return;const n=++candidateSeq;candidateLoading.value=true;candidateError.value='';try{const r=await api<MeasurementRow[]>('/measurements',{query:{sample_id:old.sample_id,current:true,page:candidatePage.value,size:20,sort:'-created_at'}});if(n===candidateSeq){candidates.value=r.data;candidateTotal.value=r.meta?.total??r.data.length}}catch(e){if(n===candidateSeq)candidateError.value=errorText(e)}finally{if(n===candidateSeq)candidateLoading.value=false}}
+function eligibility(old:MeasurementRow,replacement:MeasurementRow){if(old.measurement_id===replacement.measurement_id)throw new Error('不能取代自身');if(old.sample_id!==replacement.sample_id)throw new Error('替代测量必须属于同一样品');if(!old.is_current||!replacement.is_current)throw new Error('双方必须均为当前测量');if(replacement.supersedes_measurement_id!=null)throw new Error('替代测量已有取代关系，请选择其他记录')}
+async function loadCandidate(id?:number){if(busy.value)return;candidate.value=null;confirmation.value=null;acknowledged.value=false;candidateError.value='';try{const value=id??positiveId(candidateId.value,'替代测量 ID');if(!value)throw new Error('请填写替代测量 ID');candidateId.value=String(value);checking.value=true;const r=await api<MeasurementRow>(`/measurements/${value}`);if(!selected.value)return;eligibility(selected.value,r.data);candidate.value=r.data}catch(e){candidateError.value=errorText(e)}finally{checking.value=false}}
+async function saveQuality(){if(!editable.value||!qualityDirty.value||conflict.value||!selected.value)return;saveError.value='';saving.value=true;try{const r=await api<MeasurementRow>(`/measurements/${selected.value.measurement_id}`,{method:'PATCH',body:{expected_row_version:selected.value.row_version,quality_flag:quality.value,quality_note:note.value||null}});selected.value=r.data;quality.value=r.data.quality_flag;note.value=r.data.quality_note??'';confirmation.value=null;ElMessage.success('质量标记已保存');await loadList()}catch(e){saveError.value=errorText(e);if(e instanceof ApiError&&e.status===409)conflict.value=true}finally{saving.value=false}}
+async function prepareSupersede(){if(!editable.value||!selected.value||!candidate.value||qualityDirty.value)return;saveError.value='';if(!reason.value.trim()){saveError.value='请填写取代原因';return}checking.value=true;confirmation.value=null;acknowledged.value=false;try{const [a,b]=await Promise.all([api<MeasurementRow>(`/measurements/${selected.value.measurement_id}`),api<MeasurementRow>(`/measurements/${candidate.value.measurement_id}`)]);eligibility(a.data,b.data);confirmation.value={old:a.data,replacement:b.data,reason:reason.value.trim()}}catch(e){saveError.value=errorText(e)}finally{checking.value=false}}
+async function supersede(){const c=confirmation.value;if(!c||!acknowledged.value||!auth.canWrite||busy.value)return;saving.value=true;saveError.value='';try{const r=await api<MeasurementRow>(`/measurements/${c.old.measurement_id}/supersede`,{method:'POST',body:{replacement_measurement_id:c.replacement.measurement_id,expected_row_version:c.old.row_version,expected_replacement_row_version:c.replacement.row_version,reason:c.reason}});selected.value=r.data;resetDraft(r.data);ElMessage.success('取代关系已保存，旧测量及测点历史保留');await Promise.all([loadList(),loadCandidates()])}catch(e){saveError.value=errorText(e);confirmation.value=null;acknowledged.value=false;if(e instanceof ApiError&&e.status===409)conflict.value=true}finally{saving.value=false}}
+async function download(id:number){if(downloadBusy.value)return;downloadId.value=id;downloadBusy.value=true;downloadError.value='';try{await downloadSource(id)}catch(e){downloadError.value=errorText(e)}finally{downloadBusy.value=false}}
+async function entry(){void loadProcesses();let id:number|undefined;try{id=positiveId(route.query.id??route.query.measurement_id,'测量 ID');filters.sample_id=String(route.query.sample_id??'');filters.process_id=String(route.query.process_id??'');await search();if(id){idInput.value=String(id);await loadDetail(id)}else{detailSeq++;selected.value=null;requestedId.value=undefined;detailError.value='';resetEmpty()}}catch(e){detailError.value=errorText(e)}}
+function resetEmpty(){reason.value='';confirmation.value=null;candidate.value=null;quality.value='ok';note.value=''}
+watch(()=>[candidateId.value,reason.value],()=>{confirmation.value=null;acknowledged.value=false})
+watch(candidateId,()=>{if(String(candidate.value?.measurement_id)!==candidateId.value)candidate.value=null})
+watch(()=>route.fullPath,entry)
+onMounted(entry)
+onBeforeUnmount(()=>{listSeq++;detailSeq++;candidateSeq++})
+</script>
+
+<template>
+<div class="measurement-workspace" data-testid="measurements-view">
+  <PageHeading title="测量记录" description="查看真实测量、原始测点与来源。质量修订与测量取代均保留历史，并核对服务端版本。"><template #actions><el-button :loading="loading" @click="loadList" data-testid="measurements-refresh">刷新列表</el-button></template></PageHeading>
+  <section class="panel">
+    <form class="toolbar" @submit.prevent="search" data-testid="measurements-filters">
+      <SamplePicker :model-value="Number(filters.sample_id)||null" @update:model-value="v=>filters.sample_id=v?String(v):''" :multiple="false" placeholder="搜索样品编号 / 批次" testid="measurement-sample-filter"/>
+      <el-select v-model="filters.process_id" class="filter-select" filterable remote :remote-method="loadProcesses" clearable placeholder="搜索实验名称 / 执行编号" aria-label="筛选实验执行" @visible-change="(v:boolean)=>v&&loadProcesses()"><el-option v-for="p in processOptions" :key="p.process_id" :value="String(p.process_id)" :label="`${p.plan_title||'独立实验'} · ${p.process_code}`"/></el-select><p v-if="processSearchError" role="alert">{{processSearchError}}</p>
+      <el-select v-model="filters.stage" class="filter-select" placeholder="全部阶段" aria-label="测量阶段" clearable><el-option v-for="(v,k) in stages" :key="k" :value="k" :label="v" /></el-select>
+      <el-select v-model="filters.current" class="filter-select" placeholder="全部版本" aria-label="当前版本过滤" clearable><el-option value="true" label="当前测量" /><el-option value="false" label="历史测量" /></el-select>
+      <el-select v-model="filters.quality" class="filter-select" placeholder="全部质量" aria-label="质量过滤" clearable><el-option v-for="(v,k) in qualities" :key="k" :value="k" :label="v" /></el-select>
+      <el-select v-model="filters.sort" class="filter-select" aria-label="测量排序"><el-option value="-created_at" label="登记时间倒序" /><el-option value="measurement_id" label="登记顺序" /><el-option value="-measured_at" label="测量时间倒序" /></el-select>
+      <el-button native-type="submit" :loading="loading" data-testid="measurement-filter-submit">筛选</el-button>
+    </form>
+    <StatePanel v-if="listError" title="测量列表加载失败" :description="listError" tone="error"><el-button @click="loadList" data-testid="measurement-list-retry">重试</el-button></StatePanel>
+    <div v-else class="table-wrap" v-loading="loading"><el-table :data="rows" data-testid="measurements-table" empty-text="没有符合条件的测量">
+      <el-table-column label="测量" min-width="190"><template #default="{row}"><el-button link type="primary" :disabled="busy" @click="choose(row.measurement_id)" :data-testid="`measurement-open-${row.measurement_id}`">{{ row.measurement_code }}</el-button><div class="table-sub">#{{ row.measurement_id }} · 版本 {{ row.row_version }}</div></template></el-table-column>
+      <el-table-column label="样品 / 执行" min-width="130"><template #default="{row}">{{ row.sample_code||'样品编号未记录' }}<div class="table-sub">{{row.plan_title||row.process_code||'未关联可见执行'}}</div></template></el-table-column>
+      <el-table-column label="阶段" min-width="140"><template #default="{row}">{{ stages[row.stage]??row.stage }}<div class="table-sub">阶段序号 {{ text(row.stage_seq) }}</div></template></el-table-column>
+      <el-table-column prop="thickness_mean_nm" label="均值（nm）" min-width="140" /><el-table-column prop="thickness_sd_nm" label="空间 SD（nm）" min-width="150" />
+      <el-table-column label="质量 / 版本" min-width="140"><template #default="{row}"><el-tag :type="row.quality_flag==='ok'?'success':row.quality_flag==='abnormal'?'danger':'warning'">{{ qualities[row.quality_flag]??row.quality_flag }}</el-tag><div class="table-sub">{{ row.is_current?'当前测量':'历史 · 已被取代' }}</div></template></el-table-column>
+      <el-table-column label="测量时间" min-width="180"><template #default="{row}">{{ time(row.measured_at) }}</template></el-table-column>
+    </el-table></div>
+    <div class="pagination"><span>共 {{ total }} 条 · 包含保留的历史版本</span><el-pagination v-model:current-page="page" v-model:page-size="size" :total="total" :page-sizes="[10,20,50,100]" layout="prev,pager,next,sizes" :disabled="loading" @current-change="loadList" @size-change="page=1;loadList()" data-testid="measurements-pagination" /></div>
+  </section>
+  <section class="panel measurement-detail">
+    <details><summary>按技术编号定位（可选）</summary><form class="toolbar" @submit.prevent="openId"><el-input v-model="idInput" class="search-input" placeholder="通过测量 ID 读取详情" aria-label="详情测量 ID" data-testid="measurement-id" /><el-button native-type="submit" :disabled="busy" data-testid="measurement-load-id">读取详情</el-button><el-button v-if="requestedId" :disabled="busy" @click="refreshDetail" data-testid="measurement-detail-refresh">重载详情</el-button></form></details>
+    <StatePanel v-if="detailError" title="测量详情加载失败" :description="detailError" tone="error"><el-button :disabled="busy" @click="refreshDetail" data-testid="measurement-detail-retry">重试详情</el-button></StatePanel>
+    <div v-else-if="detailLoading" class="panel-body"><el-skeleton :rows="5" animated /></div>
+    <div v-else-if="selected" class="panel-body" data-testid="measurement-detail">
+      <div class="detail-title"><h2>{{ selected.measurement_code }}</h2><el-tag>{{ selected.is_current?'当前测量':'历史测量（保留）' }}</el-tag></div>
+      <dl class="detail-grid"><div><dt>样品 / 执行</dt><dd><router-link :to="{path:'/samples',query:{sample_id:selected.sample_id}}">{{ selected.sample_code||'样品编号未记录' }}</router-link> / {{selected.plan_title||selected.process_code||'未关联可见执行'}}</dd></div><div><dt>阶段 / 测量时间</dt><dd>{{ stages[selected.stage]??selected.stage }} / {{ time(selected.measured_at) }}</dd></div><div><dt>平均膜厚 / 空间 SD（nm）</dt><dd>{{ text(selected.thickness_mean_nm) }} / {{ text(selected.thickness_sd_nm) }}</dd></div><div><dt>最小 / 最大膜厚（nm）</dt><dd>{{ text(selected.thickness_min_nm) }} / {{ text(selected.thickness_max_nm) }}</dd></div><div><dt>MSE 均值 / 最大值（无量纲）</dt><dd>{{ text(selected.mse_mean) }} / {{ text(selected.mse_max) }}</dd></div><div><dt>GOF / 光学模型</dt><dd>{{ text(selected.gof_mean) }} / {{selected.optical_model_name||'模型未确认'}}</dd></div><div><dt>测点数 / 累计循环数</dt><dd>{{ text(selected.point_count) }} / {{ text(selected.cumulative_cycles) }}</dd></div><div><dt>取代关系 / 原因</dt><dd><el-button v-if="selected.supersedes_measurement_id" link type="primary" @click="choose(selected.supersedes_measurement_id)">取代了 #{{ selected.supersedes_measurement_id }}</el-button><span v-else>未取代其他测量</span><div>{{ text(selected.supersede_reason) }}</div></dd></div></dl>
+      <p class="readonly-note">空间 SD 描述测点分布，不代表独立重复误差。Height（mm）是仪器高度，不是膜厚。异常点仅标记并保留，不自动剔除。</p>
+      <FormSection title="测点与原始值" description="按服务端 point_no、point_id 顺序展示；数值保留接口精度。">
+        <el-table :data="points" max-height="480" data-testid="measurement-points" empty-text="此测量没有测点记录">
+          <el-table-column prop="point_no" label="点号" width="70" /><el-table-column prop="x_mm" label="X（mm）" min-width="110" /><el-table-column prop="y_mm" label="Y（mm）" min-width="110" /><el-table-column prop="thickness_nm" label="膜厚（nm）" min-width="130" /><el-table-column prop="height_mm" label="Height（mm）" min-width="140" /><el-table-column prop="mse" label="MSE" min-width="110" /><el-table-column prop="gof" label="GOF" min-width="110" /><el-table-column prop="aoi_deg" label="入射角（°）" min-width="120" />
+          <el-table-column label="异常标记" min-width="190"><template #default="{row}"><el-tag :type="row.is_outlier?'warning':'info'">{{ row.is_outlier?'异常 / 离群标记':'未标记' }}</el-tag><div>{{ text(row.outlier_note) }}</div></template></el-table-column>
+          <el-table-column label="原始定位" min-width="220"><template #default="{row}"><router-link v-if="row.source_file_id" :to="{path:'/source-files',query:{id:row.source_file_id}}">源文件 #{{ row.source_file_id }}</router-link><div>{{ text(row.source_sheet) }} · 行 {{ text(row.source_row) }} · {{ text(row.source_cell) }}</div></template></el-table-column>
+          <el-table-column type="expand"><template #default="{row}"><pre class="raw-json">{{ json(row) }}</pre></template></el-table-column>
+        </el-table>
+        <details data-testid="measurement-points-json"><summary>全部测点原始 JSON（含 raw_values / dispersion_params）</summary><pre class="raw-json">{{ json(points) }}</pre></details>
+      </FormSection>
+      <FormSection title="来源与溯源" description="原始文件按服务端校验后的不可变内容下载。">
+        <p>导入条目 #{{ text(selected.import_item_id) }} · 定位 {{ text(selected.import_locator) }}</p>
+        <div v-for="id in sources" :key="id" class="source-action"><router-link :to="{path:'/source-files',query:{id}}">源文件 #{{ id }}</router-link><el-button :disabled="downloadBusy" @click="download(id)" :data-testid="`measurement-download-${id}`">下载原始文件</el-button></div><p v-if="!sources.length" class="field-hint">未关联原始文件。</p>
+        <StatePanel v-if="downloadError" title="原始文件下载失败" :description="downloadError" tone="error"><el-button v-if="downloadId" :disabled="downloadBusy" @click="download(downloadId)">重试下载</el-button></StatePanel>
+        <details data-testid="measurement-provenance-json"><summary>Provenance 原始 JSON</summary><pre class="raw-json">{{ json(selected.provenance) }}</pre></details><details><summary>测量详情完整 JSON</summary><pre class="raw-json">{{ json(selected) }}</pre></details>
+      </FormSection>
+      <details><summary>质量修订与重测替代（可选）</summary><FormSection title="质量标记" description="只修改质量标记和备注；保存时校验当前测量 row_version。">
+        <p v-if="!auth.canWrite" class="readonly-note" data-testid="measurement-readonly">只读成员可查看与下载，不能修改质量或建立取代关系。</p>
+        <el-alert v-if="saveError" :title="saveError" type="error" :closable="false" data-testid="measurement-save-error" />
+        <el-alert v-if="conflict" title="版本或取代关系冲突。输入已保留，请重载最新版本并核对；取代操作需要重新确认双方。" type="warning" :closable="false"><el-button :disabled="busy" @click="reloadVersion" data-testid="measurement-reload-version">重载版本并保留质量输入</el-button></el-alert>
+        <el-form label-position="top" :disabled="!editable"><el-form-item label="质量标记"><el-select v-model="quality" data-testid="measurement-quality"><el-option v-for="(v,k) in qualities" :key="k" :label="v" :value="k" /></el-select></el-form-item><el-form-item label="质量备注"><el-input v-model="note" type="textarea" :rows="3" maxlength="20000" data-testid="measurement-quality-note" /></el-form-item><el-button type="primary" :loading="saving" :disabled="!editable||!qualityDirty||conflict" @click="saveQuality" data-testid="measurement-quality-save">保存质量</el-button><span v-if="qualityDirty" class="field-hint"> 有未保存修改</span></el-form>
+      </FormSection>
+      <FormSection title="建立测量取代关系" description="旧测量、测点与来源保持可追溯。替代测量必须为同样品的当前测量；不会删除历史。">
+        <p v-if="!selected.is_current" class="readonly-note">此测量已成为历史，不能再次被取代。可通过列表的“全部版本 / 历史测量”查看保留记录。</p>
+        <template v-else-if="auth.canWrite">
+          <p class="field-hint">先保存质量修改，再读取替代记录并核对双方最新版本。候选按同样品、current=true 分页查询；已有取代关系的记录不能作为替代方。</p>
+          <StatePanel v-if="candidateError" title="候选测量加载失败" :description="candidateError" tone="error"><el-button :disabled="busy" @click="loadCandidates">重试候选列表</el-button></StatePanel>
+          <el-table :data="candidates" v-loading="candidateLoading" size="small" data-testid="measurement-candidates"><el-table-column prop="measurement_code" label="同样品当前测量" min-width="160" /><el-table-column label="阶段 / 版本" min-width="140"><template #default="{row}">{{ stages[row.stage]??row.stage }} / v{{ row.row_version }}</template></el-table-column><el-table-column label="操作" width="160"><template #default="{row}"><el-button link type="primary" :disabled="busy||row.measurement_id===selected.measurement_id||row.supersedes_measurement_id!=null" @click="loadCandidate(row.measurement_id)" :data-testid="`candidate-load-${row.measurement_id}`">{{ row.measurement_id===selected.measurement_id?'当前记录':'明确加载此 ID' }}</el-button></template></el-table-column></el-table>
+          <div class="pagination"><span>同样品当前记录共 {{ candidateTotal }} 条（含当前记录）</span><el-pagination v-model:current-page="candidatePage" :page-size="20" :total="candidateTotal" layout="prev,pager,next" :disabled="candidateLoading||busy" @current-change="loadCandidates" data-testid="measurement-candidates-pagination" /></div>
+          <el-form label-position="top" :disabled="!editable"><el-form-item label="替代测量 ID（可手工填写，必须明确加载）"><div class="inline-controls"><el-input v-model="candidateId" placeholder="替代测量 ID" data-testid="measurement-replacement-id" /><el-button @click="loadCandidate()" data-testid="measurement-replacement-load">加载并检查</el-button></div></el-form-item><p v-if="candidate" data-testid="measurement-replacement-loaded">已加载 {{ candidate.measurement_code }} · #{{ candidate.measurement_id }} · 样品 #{{ candidate.sample_id }} · v{{ candidate.row_version }}</p><el-form-item label="取代原因" required><el-input v-model="reason" type="textarea" maxlength="20000" :rows="3" data-testid="measurement-supersede-reason" /></el-form-item><el-button type="warning" :disabled="!editable||qualityDirty||!candidate||!reason.trim()" :loading="checking" @click="prepareSupersede" data-testid="measurement-supersede-prepare">读取双方最新版本并准备确认</el-button></el-form>
+        </template>
+      </FormSection>
+    </details></div>
+    <StatePanel v-else title="选择一条测量" description="按样品或实验筛选后，点击测量编号查看真实测点与来源。" />
+  </section>
+  <el-dialog :model-value="!!confirmation" title="确认取代双方最新版本" width="min(680px,94vw)" :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving" :before-close="(done:()=>void)=>{if(!saving){confirmation=null;done()}}" data-testid="measurement-supersede-confirmation">
+    <template v-if="confirmation"><p>确认后旧测量不再是当前记录，所有原始数据保留。服务端会再次校验以下两个版本。</p><dl class="detail-grid"><div><dt>被取代方</dt><dd>{{ confirmation.old.measurement_code }} · #{{ confirmation.old.measurement_id }}<br>样品 #{{ confirmation.old.sample_id }} · v{{ confirmation.old.row_version }}<br>{{ stages[confirmation.old.stage] }} · {{ text(confirmation.old.thickness_mean_nm) }} nm<br>质量：{{ qualities[confirmation.old.quality_flag] }} · 光学模型 #{{ text(confirmation.old.optical_model_id) }}<br>当前：{{ confirmation.old.is_current?'是':'否' }}</dd></div><div><dt>替代方</dt><dd>{{ confirmation.replacement.measurement_code }} · #{{ confirmation.replacement.measurement_id }}<br>样品 #{{ confirmation.replacement.sample_id }} · v{{ confirmation.replacement.row_version }}<br>{{ stages[confirmation.replacement.stage] }} · {{ text(confirmation.replacement.thickness_mean_nm) }} nm<br>质量：{{ qualities[confirmation.replacement.quality_flag] }} · 光学模型 #{{ text(confirmation.replacement.optical_model_id) }}<br>当前：{{ confirmation.replacement.is_current?'是':'否' }}</dd></div></dl><p class="reason-text">原因：{{ confirmation.reason }}</p><el-checkbox v-model="acknowledged" :disabled="saving" data-testid="measurement-supersede-ack">我已核对双方 ID、样品、最新版本及取代原因</el-checkbox></template>
+    <template #footer><el-button :disabled="saving" @click="confirmation=null">取消</el-button><el-button type="warning" :disabled="!acknowledged||saving" :loading="saving" @click="supersede" data-testid="measurement-supersede-submit">确认保存取代关系</el-button></template>
+  </el-dialog>
+</div>
+</template>
+<style scoped>
+.measurement-detail{margin-top:24px}.measurement-workspace .form-section-block{margin-top:24px}.raw-json{max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:16px;font-size:12px}.measurement-workspace details{margin-top:16px}.measurement-workspace summary{cursor:pointer;color:var(--teal);font-size:13px}.source-action,.inline-controls{display:flex;align-items:center;gap:12px;margin:12px 0}.inline-controls{width:100%}.reason-text{white-space:pre-wrap;overflow-wrap:anywhere}.measurement-workspace .el-alert{margin-bottom:16px}@media(max-width:760px){.measurement-workspace .detail-grid{grid-template-columns:1fr}.inline-controls{flex-wrap:wrap}.measurement-workspace .pagination{overflow:auto}}
+</style>

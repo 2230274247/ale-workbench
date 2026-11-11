@@ -1,0 +1,2510 @@
+LifecycleBatch:
+  type: object
+  description: '沉积批次。**批次是数据可比性的强制隔离边界**——
+
+    不同批次初始厚度约 30/300/74/47nm，不应合并拟合。
+
+
+    阶段 1：admin 全部可见；operator/viewer 仅自己的 owner_user_id；样品所属批次也必须可见，无共享。'
+  required:
+  - batch_id
+  - batch_code
+  - batch_name
+  - material
+  - wafer_size
+  - nominal_thickness_nm
+  - deposit_recipe_id
+  - deposit_date
+  - deposit_set_temp_c
+  - deposit_actual_temp_c
+  - deposit_gas_flows
+  - source_zip
+  - source_zip_sha256
+  - anomaly_flag
+  - anomaly_note
+  - owner_user_id
+  - status
+  - notes
+  - created_at
+  - updated_at
+  - row_version
+  - archived_at
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  properties:
+    batch_id:
+      type: integer
+      format: int64
+      examples:
+      - 1
+      x-db-column: false
+    batch_code:
+      type: string
+      maxLength: 64
+      description: 批次编码，全局唯一
+      examples:
+      - B-20260831-W01
+      x-db-column: false
+    batch_name:
+      type: string
+      maxLength: 255
+      examples:
+      - 8/31 批次 约30nm W01
+      x-db-column: false
+    material:
+      type: string
+      maxLength: 128
+      examples:
+      - PECVD SiNx:H
+      x-db-column: false
+    wafer_size:
+      type:
+      - string
+      - 'null'
+      maxLength: 32
+      examples:
+      - 4inchx4inch
+      x-db-column: false
+    nominal_thickness_nm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,3)
+      description: 标称厚度（nm）。为 string 以避免浮点精度损失。
+      examples:
+      - '30.000'
+      x-db-column: false
+    deposit_recipe_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    deposit_date:
+      type:
+      - string
+      - 'null'
+      format: date
+      x-db-column: false
+    deposit_set_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      description: PECVD 设定温度（℃）
+      examples:
+      - '275.00'
+      x-db-column: false
+    deposit_actual_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      description: 'PECVD 实测温度（℃）。**必须与设定值分开记录**——
+
+        ISS-02 要求不可据文件名断言温度异常幅度。
+
+        '
+      examples:
+      - '275.00'
+      x-db-column: false
+    deposit_gas_flows:
+      type:
+      - object
+      - 'null'
+      additionalProperties: true
+      description: '沉积气体流量，如 {"SiH4": 20, "NH3": 100, "N2": 200}'
+      x-db-column: false
+    source_zip:
+      type:
+      - string
+      - 'null'
+      maxLength: 255
+      examples:
+      - 1.-2026.8.31-SiN.zip
+      x-db-column: false
+    source_zip_sha256:
+      type:
+      - string
+      - 'null'
+      pattern: ^[a-f0-9]{64}$
+      description: 原始压缩包 SHA-256，用于溯源校验
+      examples:
+      - 93e9e8593de2ccc83ac75ab7058f313d16b1b84bdd3471c6101310bfb185b99a
+      x-db-column: false
+    anomaly_flag:
+      anyOf:
+      - &id001
+        type: boolean
+        x-db-column: false
+      - type: integer
+        enum:
+        - 0
+        - 1
+      x-db-column: false
+    anomaly_note:
+      type:
+      - string
+      - 'null'
+      description: 异常描述。**禁止据文件名断言故障机理**（ISS-02）。
+      x-db-column: false
+    owner_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    status:
+      $ref: '#/components/schemas/BatchStatus'
+      x-db-column: false
+    notes:
+      type:
+      - string
+      - 'null'
+      x-db-column: false
+    created_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    updated_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本，每次更新递增。
+      x-db-column: false
+    archived_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+      readOnly: true
+      x-db-column: batches.archived_at
+      description: 独立归档时间；null 表示未归档，不改原有科学状态。
+    voided_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      readOnly: true
+      x-db-column: batches.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: batches.void_reason
+    voided_by_user_id:
+      anyOf:
+      - type: integer
+        exclusiveMinimum: 0
+      - type: 'null'
+      readOnly: true
+      x-db-column: batches.voided_by_user_id
+  additionalProperties: false
+LifecycleSample:
+  type: object
+  description: '样品。**工作台的中心实体**。
+
+    样品编码全局唯一（W01-S01 / B28-S06 / B05-S01 是不同样品，
+
+    不因数字相同而合并）。
+
+
+    阶段 1：admin 全部可见；operator/viewer 仅自己的 owner_user_id；样品所属批次也必须可见，无共享。'
+  required:
+  - sample_id
+  - sample_code
+  - batch_id
+  - parent_sample_id
+  - sample_type
+  - display_label
+  - nominal_thickness_nm
+  - size_desc
+  - cut_position
+  - surface_state
+  - pre_treatment
+  - status
+  - exclude_from_analysis
+  - exclude_reason
+  - owner_user_id
+  - notes
+  - created_at
+  - updated_at
+  - row_version
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  - archived_at
+  - archived_by_user_id
+  properties:
+    sample_id:
+      type: integer
+      format: int64
+      x-db-column: false
+    sample_code:
+      type: string
+      maxLength: 64
+      description: 全局唯一样品编码
+      examples:
+      - W01-S09
+      x-db-column: false
+    batch_id:
+      type: integer
+      format: int64
+      x-db-column: false
+    parent_sample_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 母片/上级样品 ID（支持母片-小样层级）
+      x-db-column: false
+    sample_type:
+      $ref: '#/components/schemas/SampleType'
+      x-db-column: false
+    display_label:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+      description: 原始文件中的编号，如 "1" / "9"
+      examples:
+      - '9'
+      x-db-column: false
+    nominal_thickness_nm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(12,3)
+      x-db-column: false
+    size_desc:
+      type:
+      - string
+      - 'null'
+      maxLength: 64
+      examples:
+      - 20mmx20mm
+      x-db-column: false
+    cut_position:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+      x-db-column: false
+    surface_state:
+      type:
+      - string
+      - 'null'
+      maxLength: 128
+      x-db-column: false
+    pre_treatment:
+      type:
+      - string
+      - 'null'
+      maxLength: 255
+      description: '前处理描述。ISS-05 要求必须记录前处理——
+
+        W01-S09 因酒精湿巾擦拭导致结果异常。
+
+        '
+      examples:
+      - 酒精湿巾擦拭后 HF-only
+      x-db-column: false
+    status:
+      $ref: '#/components/schemas/SampleStatus'
+      x-db-column: false
+    exclude_from_analysis:
+      anyOf:
+      - *id001
+      - type: integer
+        enum:
+        - 0
+        - 1
+      x-db-column: false
+    exclude_reason:
+      type:
+      - string
+      - 'null'
+      description: 排除理由。`exclude_from_analysis=true` 时应填写。
+      examples:
+      - 'ISS-05: 酒精湿巾擦拭导致刻蚀量异常升高且均匀度破坏'
+      x-db-column: false
+    owner_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    notes:
+      type:
+      - string
+      - 'null'
+      x-db-column: false
+    created_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    updated_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本，每次更新递增。
+      x-db-column: false
+    voided_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.void_reason
+    voided_by_user_id:
+      anyOf:
+      - type: integer
+        exclusiveMinimum: 0
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.voided_by_user_id
+    archived_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.archived_at
+    archived_by_user_id:
+      anyOf:
+      - type: integer
+        exclusiveMinimum: 0
+      - type: 'null'
+      readOnly: true
+      x-db-column: samples.archived_by_user_id
+  additionalProperties: false
+LifecycleExperimentPlan:
+  type: object
+  description: 实验计划。位于实验执行之前，一个计划可派生多个执行。
+  required:
+  - plan_id
+  - plan_code
+  - title
+  - objective
+  - hypothesis
+  - design_note
+  - planned_start
+  - planned_end
+  - priority
+  - status
+  - owner_user_id
+  - batch_id
+  - notes
+  - created_at
+  - updated_at
+  - row_version
+  - process_flow
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  - archive_previous_status
+  properties:
+    plan_id:
+      type: integer
+      format: int64
+      readOnly: true
+      x-db-column: false
+    plan_code:
+      type: string
+      maxLength: 64
+      examples:
+      - PLAN-2026-10-14-HFTMA-SERIES
+      x-db-column: false
+    title:
+      type: string
+      maxLength: 255
+      x-db-column: false
+    objective:
+      type:
+      - string
+      - 'null'
+      description: 实验目的
+      x-db-column: false
+    hypothesis:
+      type:
+      - string
+      - 'null'
+      description: 待验证假设
+      x-db-column: false
+    design_note:
+      type:
+      - string
+      - 'null'
+      description: 变量设计与对照组设置
+      x-db-column: false
+    planned_start:
+      type:
+      - string
+      - 'null'
+      format: date
+      x-db-column: false
+    planned_end:
+      type:
+      - string
+      - 'null'
+      format: date
+      x-db-column: false
+    priority:
+      $ref: '#/components/schemas/PlanPriority'
+      x-db-column: false
+    status:
+      $ref: '#/components/schemas/PlanStatus'
+      x-db-column: false
+    owner_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    batch_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    notes:
+      type:
+      - string
+      - 'null'
+      x-db-column: false
+    created_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    updated_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本；更新父记录或其子记录时递增。子记录自身没有 row_version。
+      x-db-column: false
+    process_flow:
+      anyOf:
+      - $ref: '#/components/schemas/ProcessFlow'
+      - type: 'null'
+      x-db-column: experiment_plans.process_flow
+      description: 保存后step_id为真实数据库ID；空值表示旧记录无布局。
+    voided_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.void_reason
+    voided_by_user_id:
+      anyOf:
+      - type: integer
+        exclusiveMinimum: 0
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.voided_by_user_id
+    archive_previous_status:
+      anyOf:
+      - type: string
+        maxLength: 24
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.archive_previous_status
+  additionalProperties: false
+LifecycleProcess:
+  type: object
+  description: 工艺运行（一次实际执行事件）。
+  required:
+  - process_id
+  - process_code
+  - plan_id
+  - batch_id
+  - process_mode
+  - tool_id
+  - chemistry_system_id
+  - r1_temp_c
+  - r2_temp_c
+  - n2_flow_sccm
+  - o3_pre_cycles
+  - o3_pre_duration_s
+  - full_ale_cycles
+  - hf_tma_repeats
+  - started_at
+  - ended_at
+  - operator_user_id
+  - co_etch_group
+  - is_independent_run
+  - log_status
+  - notes
+  - created_at
+  - updated_at
+  - row_version
+  - archived_at
+  - process_flow
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  properties:
+    process_id:
+      type: integer
+      format: int64
+      readOnly: true
+      x-db-column: false
+    process_code:
+      type: string
+      maxLength: 64
+      examples:
+      - RUN-20261014-B05-PRE-HFTMA5
+      x-db-column: false
+    plan_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 所属实验计划（可为空，表示临时加做）
+      x-db-column: false
+    batch_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    process_mode:
+      $ref: '#/components/schemas/ProcessMode'
+      x-db-column: false
+    tool_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    chemistry_system_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 关联的通用化学体系（可为空）；删除被引用的体系返回 409。
+      x-db-column: false
+    r1_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      description: R1 实测温度（℃）。与配方标称值分开。
+      x-db-column: false
+    r2_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      x-db-column: false
+    n2_flow_sccm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      x-db-column: false
+    o3_pre_cycles:
+      type:
+      - integer
+      - 'null'
+      description: 'O3 预暴露**次数**。
+
+        ISS-07: 次数不等于已标定的分子剂量，且不可与秒数混淆
+
+        （源文件名中的 "10s" 实为 10 次）。
+
+        '
+      examples:
+      - 50
+      x-db-column: false
+    o3_pre_duration_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      description: 单次预暴露时长（秒）。与次数分开记录。
+      x-db-column: false
+    full_ale_cycles:
+      type:
+      - integer
+      - 'null'
+      examples:
+      - 50
+      x-db-column: false
+    hf_tma_repeats:
+      type:
+      - integer
+      - 'null'
+      examples:
+      - 5
+      x-db-column: false
+    started_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+      x-db-column: false
+    ended_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+      x-db-column: false
+    operator_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    co_etch_group:
+      type:
+      - string
+      - 'null'
+      maxLength: 64
+      description: '共腔分组标识。ISS-06: 共腔处理的样品与独立运行样品
+
+        不构成工艺独立重复，不可平均成单个工艺点。
+
+        '
+      examples:
+      - COETCH-B28-S04S06
+      x-db-column: false
+    is_independent_run:
+      anyOf:
+      - *id001
+      - type: integer
+        enum:
+        - 0
+        - 1
+      x-db-column: false
+    log_status:
+      $ref: '#/components/schemas/ProcessLogStatus'
+      x-db-column: false
+    notes:
+      type:
+      - string
+      - 'null'
+      x-db-column: false
+    created_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    updated_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本；更新父记录或其子记录时递增。子记录自身没有 row_version。
+      x-db-column: false
+    archived_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+      readOnly: true
+      x-db-column: processes.archived_at
+      description: 独立归档时间；null 表示未归档，不改原有科学状态。
+    process_flow:
+      anyOf:
+      - $ref: '#/components/schemas/ProcessFlow'
+      - type: 'null'
+      x-db-column: processes.process_flow
+      description: 保存后step_id为真实数据库ID；空值表示旧记录无布局。
+    voided_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      readOnly: true
+      x-db-column: processes.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: processes.void_reason
+    voided_by_user_id:
+      anyOf:
+      - type: integer
+        exclusiveMinimum: 0
+      - type: 'null'
+      readOnly: true
+      x-db-column: processes.voided_by_user_id
+  additionalProperties: false
+WorkflowOwner:
+  type: object
+  additionalProperties: false
+  properties:
+    user_id: &id004
+      type: integer
+      exclusiveMinimum: 0
+      x-db-column: false
+    username: &id002
+      type: string
+      x-db-column: false
+    display_name:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+  required:
+  - user_id
+  - username
+  - display_name
+WorkflowPlanDetail:
+  type: object
+  properties:
+    plan_id:
+      type: integer
+      format: int64
+      readOnly: true
+      x-db-column: false
+    plan_code:
+      type: string
+      maxLength: 64
+      examples:
+      - PLAN-2026-10-14-HFTMA-SERIES
+      x-db-column: false
+    title:
+      type: string
+      maxLength: 255
+      x-db-column: false
+    objective:
+      type:
+      - string
+      - 'null'
+      description: 实验目的
+      x-db-column: false
+    hypothesis:
+      type:
+      - string
+      - 'null'
+      description: 待验证假设
+      x-db-column: false
+    design_note:
+      type:
+      - string
+      - 'null'
+      description: 变量设计与对照组设置
+      x-db-column: false
+    planned_start:
+      type:
+      - string
+      - 'null'
+      format: date
+      x-db-column: false
+    planned_end:
+      type:
+      - string
+      - 'null'
+      format: date
+      x-db-column: false
+    priority:
+      $ref: '#/components/schemas/PlanPriority'
+      x-db-column: false
+    status:
+      $ref: '#/components/schemas/PlanStatus'
+      x-db-column: false
+    owner_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    batch_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    notes:
+      type:
+      - string
+      - 'null'
+      x-db-column: false
+    created_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    updated_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本；更新父记录或其子记录时递增。子记录自身没有 row_version。
+      x-db-column: false
+    process_flow:
+      anyOf:
+      - $ref: '#/components/schemas/ProcessFlow'
+      - type: 'null'
+      x-db-column: experiment_plans.process_flow
+      description: 保存后step_id为真实数据库ID；空值表示旧记录无布局。
+    voided_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.void_reason
+    voided_by_user_id:
+      anyOf:
+      - type: integer
+        exclusiveMinimum: 0
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.voided_by_user_id
+    archive_previous_status:
+      anyOf:
+      - type: string
+        maxLength: 24
+      - type: 'null'
+      readOnly: true
+      x-db-column: experiment_plans.archive_previous_status
+    steps:
+      type: array
+      items:
+        $ref: '#/components/schemas/PlanStep'
+      x-db-column: false
+    batch:
+      anyOf:
+      - $ref: '#/components/schemas/LifecycleBatch'
+      - type: 'null'
+      x-db-column: false
+    processes:
+      type: array
+      items:
+        $ref: '#/components/schemas/LifecycleProcess'
+      x-db-column: false
+    process_count:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    owner:
+      anyOf:
+      - $ref: '#/components/schemas/WorkflowOwner'
+      - type: 'null'
+      x-db-column: false
+  required:
+  - plan_id
+  - plan_code
+  - title
+  - objective
+  - hypothesis
+  - design_note
+  - planned_start
+  - planned_end
+  - priority
+  - status
+  - owner_user_id
+  - batch_id
+  - notes
+  - created_at
+  - updated_at
+  - row_version
+  - process_flow
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  - archive_previous_status
+  - steps
+  - batch
+  - processes
+  - process_count
+  - owner
+  additionalProperties: false
+WorkflowProcessDetail:
+  type: object
+  properties:
+    process_id:
+      type: integer
+      format: int64
+      readOnly: true
+      x-db-column: false
+    process_code:
+      type: string
+      maxLength: 64
+      examples:
+      - RUN-20261014-B05-PRE-HFTMA5
+      x-db-column: false
+    plan_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 所属实验计划（可为空，表示临时加做）
+      x-db-column: false
+    batch_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    process_mode:
+      $ref: '#/components/schemas/ProcessMode'
+      x-db-column: false
+    tool_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    chemistry_system_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: 关联的通用化学体系（可为空）；删除被引用的体系返回 409。
+      x-db-column: false
+    r1_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      description: R1 实测温度（℃）。与配方标称值分开。
+      x-db-column: false
+    r2_temp_c:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      x-db-column: false
+    n2_flow_sccm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      x-db-column: false
+    o3_pre_cycles:
+      type:
+      - integer
+      - 'null'
+      description: 'O3 预暴露**次数**。
+
+        ISS-07: 次数不等于已标定的分子剂量，且不可与秒数混淆
+
+        （源文件名中的 "10s" 实为 10 次）。
+
+        '
+      examples:
+      - 50
+      x-db-column: false
+    o3_pre_duration_s:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      description: 单次预暴露时长（秒）。与次数分开记录。
+      x-db-column: false
+    full_ale_cycles:
+      type:
+      - integer
+      - 'null'
+      examples:
+      - 50
+      x-db-column: false
+    hf_tma_repeats:
+      type:
+      - integer
+      - 'null'
+      examples:
+      - 5
+      x-db-column: false
+    started_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+      x-db-column: false
+    ended_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+      x-db-column: false
+    operator_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      x-db-column: false
+    co_etch_group:
+      type:
+      - string
+      - 'null'
+      maxLength: 64
+      description: '共腔分组标识。ISS-06: 共腔处理的样品与独立运行样品
+
+        不构成工艺独立重复，不可平均成单个工艺点。
+
+        '
+      examples:
+      - COETCH-B28-S04S06
+      x-db-column: false
+    is_independent_run:
+      anyOf:
+      - type: boolean
+      - type: integer
+        enum:
+        - 0
+        - 1
+      x-db-column: false
+    log_status:
+      $ref: '#/components/schemas/ProcessLogStatus'
+      x-db-column: false
+    notes:
+      type:
+      - string
+      - 'null'
+      x-db-column: false
+    created_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    updated_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    row_version:
+      type: integer
+      minimum: 1
+      readOnly: true
+      description: 服务端并发版本；更新父记录或其子记录时递增。子记录自身没有 row_version。
+      x-db-column: false
+    archived_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+      readOnly: true
+      x-db-column: processes.archived_at
+      description: 独立归档时间；null 表示未归档，不改原有科学状态。
+    process_flow:
+      anyOf:
+      - $ref: '#/components/schemas/ProcessFlow'
+      - type: 'null'
+      x-db-column: processes.process_flow
+      description: 保存后step_id为真实数据库ID；空值表示旧记录无布局。
+    voided_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      readOnly: true
+      x-db-column: processes.voided_at
+    void_reason:
+      anyOf:
+      - type: string
+        maxLength: 2000
+      - type: 'null'
+      readOnly: true
+      x-db-column: processes.void_reason
+    voided_by_user_id:
+      anyOf:
+      - type: integer
+        exclusiveMinimum: 0
+      - type: 'null'
+      readOnly: true
+      x-db-column: processes.voided_by_user_id
+    steps:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProcessStep'
+      x-db-column: false
+    batch:
+      anyOf:
+      - $ref: '#/components/schemas/LifecycleBatch'
+      - type: 'null'
+      x-db-column: false
+    samples:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProcessSampleLink'
+      x-db-column: false
+    step_count:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    sample_count:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    plan:
+      anyOf:
+      - $ref: '#/components/schemas/LifecycleExperimentPlan'
+      - type: 'null'
+      x-db-column: false
+    tool:
+      anyOf:
+      - $ref: '#/components/schemas/Tool'
+      - type: 'null'
+      x-db-column: false
+  required:
+  - process_id
+  - process_code
+  - plan_id
+  - batch_id
+  - process_mode
+  - tool_id
+  - chemistry_system_id
+  - r1_temp_c
+  - r2_temp_c
+  - n2_flow_sccm
+  - o3_pre_cycles
+  - o3_pre_duration_s
+  - full_ale_cycles
+  - hf_tma_repeats
+  - started_at
+  - ended_at
+  - operator_user_id
+  - co_etch_group
+  - is_independent_run
+  - log_status
+  - notes
+  - created_at
+  - updated_at
+  - row_version
+  - archived_at
+  - process_flow
+  - voided_at
+  - void_reason
+  - voided_by_user_id
+  - steps
+  - batch
+  - samples
+  - step_count
+  - sample_count
+  - plan
+  - tool
+  additionalProperties: false
+WorkflowStartPlan:
+  additionalProperties: false
+  properties:
+    plan_code:
+      maxLength: 64
+      minLength: 1
+      type: string
+      x-db-column: false
+    title:
+      maxLength: 255
+      minLength: 1
+      type: string
+      x-db-column: false
+    objective:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+    hypothesis:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+    design_note:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+    planned_start:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+    planned_end:
+      anyOf:
+      - format: date
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+    priority:
+      default: normal
+      enum:
+      - high
+      - normal
+      - low
+      type: string
+      x-db-column: false
+    status:
+      default: draft
+      enum:
+      - draft
+      - approved
+      - running
+      - completed
+      - abandoned
+      type: string
+      x-db-column: false
+    batch_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      x-db-column: false
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+  required:
+  - title
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+  x-python-definition: "class WorkflowStartPlan(PlanCreate):\n    plan_code: Annotated[str, Field(min_length=1, max_length=64)]\
+    \ = Field(default_factory=lambda: 'PL-' + uuid.uuid4().hex)"
+WorkflowStartProcess:
+  additionalProperties: false
+  properties:
+    process_code:
+      maxLength: 64
+      minLength: 1
+      type: string
+      x-db-column: false
+    process_mode:
+      enum:
+      - full_cycle
+      - pre_expose_then_react
+      - hf_only
+      - o3_only
+      - tma_only
+      - plasma
+      - deposition
+      - other
+      type: string
+      x-db-column: false
+    plan_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      x-db-column: false
+    batch_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      x-db-column: false
+    tool_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      x-db-column: false
+    chemistry_system_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      description: 关联的通用化学体系（可空）；校验存在且可见。
+      x-db-column: false
+    r1_temp_c:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,2})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+      x-db-column: false
+    r2_temp_c:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(8,2)
+      pattern: ^-?0*\d{1,6}(?:\.\d{1,2})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+      x-db-column: false
+    n2_flow_sccm:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+      x-db-column: false
+    o3_pre_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      x-db-column: false
+    o3_pre_duration_s:
+      default: null
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(10,3)
+      pattern: ^-?0*\d{1,7}(?:\.\d{1,3})?$
+      description: 仅接受普通十进制字符串；禁止数字、科学计数法或超出精度/小数位。未知观测保持 null。
+      x-db-column: false
+    full_ale_cycles:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      x-db-column: false
+    hf_tma_repeats:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      x-db-column: false
+    started_at:
+      anyOf:
+      - format: date-time
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+    ended_at:
+      anyOf:
+      - format: date-time
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+    co_etch_group:
+      anyOf:
+      - maxLength: 64
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+    is_independent_run:
+      default: true
+      type: boolean
+      x-db-column: false
+    log_status:
+      default: unknown
+      enum:
+      - ok
+      - partial
+      - aborted
+      - unknown
+      type: string
+      x-db-column: false
+    notes:
+      anyOf:
+      - maxLength: 20000
+        type: string
+      - type: 'null'
+      default: null
+      x-db-column: false
+    steps:
+      items:
+        $ref: '#/components/schemas/ProcessStepCreate'
+      maxItems: 500
+      type: array
+      x-db-column: false
+    samples:
+      items:
+        $ref: '#/components/schemas/ProcessSampleCreate'
+      maxItems: 500
+      type: array
+      x-db-column: false
+    process_flow:
+      anyOf:
+      - $ref: '#/components/schemas/ProcessFlow'
+      - type: 'null'
+      default: null
+      x-db-column: processes.process_flow
+      description: 创建流程只接受与提交steps的step_index一致的整数引用；保存后解析为实际step_id。
+  required:
+  - process_mode
+  type: object
+  description: 独立请求模型；未声明字段返回 422。省略字段保持原值（PATCH）或使用默认值（创建）。
+  x-python-definition: "class WorkflowStartProcess(ProcessCreate):\n    process_code: Annotated[str, Field(min_length=1, max_length=64)]\
+    \ = Field(default_factory=lambda: 'EX-' + uuid.uuid4().hex)\n    log_status: Literal['ok','partial','aborted','unknown']\
+    \ = 'unknown'\n    steps: list[ProcessStepCreate] = Field(default_factory=list)\n    samples: list[ProcessSampleCreate]\
+    \ = Field(default_factory=list)"
+LifecycleApply:
+  additionalProperties: false
+  description: One lifecycle action; the reason is required for void and optional otherwise.
+  properties:
+    preview_token:
+      maxLength: 64
+      minLength: 64
+      title: Preview Token
+      type: string
+      x-db-column: false
+    operation_id:
+      pattern: ^[a-zA-Z0-9_-]{16,64}$
+      title: Operation Id
+      type: string
+      x-db-column: false
+    sample_versions:
+      additionalProperties:
+        minimum: 1
+        type: integer
+        x-python-strict: true
+      default: {}
+      title: Sample Versions
+      type: object
+      x-db-column: false
+    action:
+      enum:
+      - archive
+      - archive_with_dependents
+      - void
+      - delete
+      - restore
+      title: Action
+      type: string
+      x-db-column: false
+    expected_row_version:
+      minimum: 1
+      title: Expected Row Version
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    reason:
+      anyOf:
+      - maxLength: 2000
+        type: string
+      - type: 'null'
+      default: null
+      title: Reason
+      x-db-column: false
+    include_sample_ids:
+      anyOf:
+      - items:
+          exclusiveMinimum: 0
+          type: integer
+          x-python-strict: true
+        maxItems: 50
+        type: array
+      - type: 'null'
+      default: null
+      title: Include Sample Ids
+      x-db-column: false
+  required:
+  - preview_token
+  - operation_id
+  - action
+  - expected_row_version
+  title: LifecycleApply
+  type: object
+  x-python-definition: "class LifecycleApply(ApiBaseModel):\n    \"\"\"One lifecycle action; the reason is required for void\
+    \ and optional otherwise.\"\"\"\n    model_config = ConfigDict(extra='forbid', str_strip_whitespace=False)\n    preview_token:\
+    \ Annotated[str, Field(min_length=64, max_length=64)]\n    operation_id: Annotated[str, Field(pattern=r'^[a-zA-Z0-9_-]{16,64}$')]\n\
+    \    sample_versions: dict[int, Annotated[int, Field(ge=1, strict=True)]] = {}\n    action: Literal['archive', 'archive_with_dependents',\
+    \ 'void', 'delete', 'restore']\n    expected_row_version: Annotated[int, Field(ge=1, strict=True)]\n    reason: Annotated[str,\
+    \ Field(max_length=2000)] | None = None\n    include_sample_ids: Annotated[list[Annotated[int, Field(gt=0, strict=True)]],\
+    \ Field(max_length=50)] | None = None\n\n    @field_validator('reason', mode='before')\n    @classmethod\n    def strip_reason(cls,\
+    \ value):\n        return value.strip() if isinstance(value, str) else value\n"
+LifecycleGroup:
+  type: object
+  additionalProperties: false
+  properties:
+    type: *id002
+    label: *id002
+    count: &id005
+      type: integer
+      minimum: 0
+      x-db-column: false
+    restricted: *id001
+    deletable_hint: *id001
+  required:
+  - type
+  - label
+  - count
+  - restricted
+  - deletable_hint
+LifecycleStatus:
+  type: object
+  additionalProperties: false
+  properties:
+    status:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    archived_at:
+      anyOf:
+      - &id003
+        type: string
+        format: date-time
+        x-db-column: false
+      - type: 'null'
+      x-db-column: false
+    voided_at:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    void_reason:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+  required:
+  - status
+  - archived_at
+  - voided_at
+  - void_reason
+LifecycleSampleCandidate:
+  type: object
+  additionalProperties: false
+  properties:
+    sample_id: *id004
+    sample_code: *id002
+    row_version: *id004
+  required:
+  - sample_id
+  - sample_code
+  - row_version
+LifecycleSampleCounts:
+  type: object
+  additionalProperties: false
+  properties:
+    total: *id005
+    available: *id005
+    unused_candidates: *id005
+    candidates:
+      type: array
+      items:
+        $ref: '#/components/schemas/LifecycleSampleCandidate'
+      x-db-column: false
+  required:
+  - total
+  - available
+  - unused_candidates
+  - candidates
+LifecycleSharedSample:
+  type: object
+  additionalProperties: false
+  properties:
+    sample_id: *id004
+    process_count: *id005
+  required:
+  - sample_id
+  - process_count
+LifecycleSharedPlan:
+  type: object
+  additionalProperties: false
+  properties:
+    plan_id: *id004
+    process_count: *id005
+  required:
+  - plan_id
+  - process_count
+LifecycleShared:
+  type: object
+  additionalProperties: false
+  properties:
+    shared_samples:
+      type: array
+      items:
+        $ref: '#/components/schemas/LifecycleSharedSample'
+      x-db-column: false
+    shared_plans:
+      type: array
+      items:
+        $ref: '#/components/schemas/LifecycleSharedPlan'
+      x-db-column: false
+  required:
+  - shared_samples
+  - shared_plans
+LifecycleImpact:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum:
+      - batches
+      - samples
+      - plans
+      - processes
+      x-db-column: false
+    id: *id004
+    code:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    row_version: *id004
+    status:
+      $ref: '#/components/schemas/LifecycleStatus'
+      x-db-column: false
+    archived: *id001
+    can_restore: *id001
+    groups:
+      type: array
+      items:
+        $ref: '#/components/schemas/LifecycleGroup'
+      x-db-column: false
+    restricted: *id001
+    restricted_flag:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    shared:
+      $ref: '#/components/schemas/LifecycleShared'
+      x-db-column: false
+    sample_counts:
+      anyOf:
+      - $ref: '#/components/schemas/LifecycleSampleCounts'
+      - type: 'null'
+      x-db-column: false
+    dependencies_total_visible: *id005
+    delete_blocked: *id001
+    delete_allowed: *id001
+    delete_permitted: *id001
+    void_allowed: *id001
+    actions:
+      type: array
+      items:
+        type: string
+        enum:
+        - archive
+        - archive_with_dependents
+        - void
+        - delete
+        - restore
+      x-db-column: false
+    preview_token:
+      type: string
+      pattern: ^[a-f0-9]{64}$
+      x-db-column: false
+  required:
+  - kind
+  - id
+  - code
+  - row_version
+  - status
+  - archived
+  - can_restore
+  - groups
+  - restricted
+  - restricted_flag
+  - shared
+  - sample_counts
+  - dependencies_total_visible
+  - delete_blocked
+  - delete_allowed
+  - delete_permitted
+  - void_allowed
+  - actions
+  - preview_token
+LifecycleDeletedBatch:
+  type: object
+  additionalProperties: false
+  properties:
+    batch_id: *id004
+    batch_code: *id002
+    deleted:
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+  required:
+  - batch_id
+  - batch_code
+  - deleted
+LifecycleDeletedSample:
+  type: object
+  additionalProperties: false
+  properties:
+    sample_id: *id004
+    sample_code: *id002
+    deleted:
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+  required:
+  - sample_id
+  - sample_code
+  - deleted
+LifecycleDeletedPlan:
+  type: object
+  additionalProperties: false
+  properties:
+    plan_id: *id004
+    plan_code: *id002
+    deleted:
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+  required:
+  - plan_id
+  - plan_code
+  - deleted
+LifecycleDeletedProcess:
+  type: object
+  additionalProperties: false
+  properties:
+    process_id: *id004
+    process_code: *id002
+    deleted:
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+  required:
+  - process_id
+  - process_code
+  - deleted
+LifecycleApplyResult:
+  oneOf:
+  - $ref: '#/components/schemas/LifecycleBatch'
+  - $ref: '#/components/schemas/LifecycleSample'
+  - $ref: '#/components/schemas/LifecycleExperimentPlan'
+  - $ref: '#/components/schemas/LifecycleProcess'
+  - $ref: '#/components/schemas/LifecycleDeletedBatch'
+  - $ref: '#/components/schemas/LifecycleDeletedSample'
+  - $ref: '#/components/schemas/LifecycleDeletedPlan'
+  - $ref: '#/components/schemas/LifecycleDeletedProcess'
+WorkflowStage:
+  type: object
+  additionalProperties: false
+  properties:
+    key:
+      type: string
+      enum:
+      - goal
+      - plan
+      - matrix
+      - samples
+      - execution
+      - actual
+      - measurement
+      x-db-column: false
+    status:
+      type: string
+      enum:
+      - saved
+      - empty
+      x-db-column: false
+  required:
+  - key
+  - status
+WorkflowState:
+  type: object
+  additionalProperties: false
+  properties:
+    plan:
+      anyOf:
+      - $ref: '#/components/schemas/WorkflowPlanDetail'
+      - type: 'null'
+      x-db-column: false
+    process:
+      anyOf:
+      - $ref: '#/components/schemas/WorkflowProcessDetail'
+      - type: 'null'
+      x-db-column: false
+    measurements:
+      type: array
+      items:
+        $ref: '#/components/schemas/Measurement'
+      x-db-column: false
+    stages:
+      type: array
+      items:
+        $ref: '#/components/schemas/WorkflowStage'
+      minItems: 7
+      maxItems: 7
+      x-db-column: false
+  required:
+  - plan
+  - process
+  - measurements
+  - stages
+DashboardTodoPlanWithoutProcess:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum:
+      - plan_without_process
+      x-db-column: false
+    entity_id: *id004
+    code:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    title: *id002
+    detail: *id002
+    status: *id002
+    updated_at:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    path:
+      type: string
+      enum:
+      - /plans
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        plan_id: *id004
+      required:
+      - plan_id
+      x-db-column: false
+  required:
+  - kind
+  - entity_id
+  - code
+  - title
+  - detail
+  - status
+  - updated_at
+  - path
+  - query
+DashboardTodoProcessLog:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum:
+      - process_log
+      x-db-column: false
+    entity_id: *id004
+    code:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    title: *id002
+    detail: *id002
+    status: *id002
+    updated_at:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    path:
+      type: string
+      enum:
+      - /processes
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        process_id: *id004
+      required:
+      - process_id
+      x-db-column: false
+  required:
+  - kind
+  - entity_id
+  - code
+  - title
+  - detail
+  - status
+  - updated_at
+  - path
+  - query
+DashboardTodoImportPending:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum:
+      - import_pending
+      x-db-column: false
+    entity_id: *id004
+    code:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    title: *id002
+    detail: *id002
+    status: *id002
+    updated_at:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    path:
+      type: string
+      enum:
+      - /imports
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        job: *id004
+      required:
+      - job
+      x-db-column: false
+  required:
+  - kind
+  - entity_id
+  - code
+  - title
+  - detail
+  - status
+  - updated_at
+  - path
+  - query
+DashboardTodoImportFailure:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum:
+      - import_failure
+      x-db-column: false
+    entity_id: *id004
+    code:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    title: *id002
+    detail: *id002
+    status: *id002
+    updated_at:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    path:
+      type: string
+      enum:
+      - /imports
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        job: *id004
+      required:
+      - job
+      x-db-column: false
+  required:
+  - kind
+  - entity_id
+  - code
+  - title
+  - detail
+  - status
+  - updated_at
+  - path
+  - query
+DashboardTodoMeasurementReview:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum:
+      - measurement_review
+      x-db-column: false
+    entity_id: *id004
+    code:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    title: *id002
+    detail: *id002
+    status: *id002
+    updated_at:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    path:
+      type: string
+      enum:
+      - /measurements
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id004
+      required:
+      - id
+      x-db-column: false
+  required:
+  - kind
+  - entity_id
+  - code
+  - title
+  - detail
+  - status
+  - updated_at
+  - path
+  - query
+DashboardTodoIssue:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum:
+      - issue
+      x-db-column: false
+    entity_id: *id004
+    code:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    title: *id002
+    detail: *id002
+    status: *id002
+    updated_at:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    path:
+      type: 'null'
+      x-db-column: false
+    query:
+      type: 'null'
+      x-db-column: false
+    severity: *id002
+  required:
+  - kind
+  - entity_id
+  - code
+  - title
+  - detail
+  - status
+  - updated_at
+  - path
+  - query
+  - severity
+DashboardTodoItem:
+  oneOf:
+  - $ref: '#/components/schemas/DashboardTodoPlanWithoutProcess'
+  - $ref: '#/components/schemas/DashboardTodoProcessLog'
+  - $ref: '#/components/schemas/DashboardTodoImportPending'
+  - $ref: '#/components/schemas/DashboardTodoImportFailure'
+  - $ref: '#/components/schemas/DashboardTodoMeasurementReview'
+  - $ref: '#/components/schemas/DashboardTodoIssue'
+DashboardTodo:
+  type: object
+  additionalProperties: false
+  properties:
+    generated_at: *id003
+    total: *id005
+    counts:
+      type: object
+      additionalProperties: false
+      properties:
+        plan_without_process: *id005
+        process_log: *id005
+        import_pending: *id005
+        import_failure: *id005
+        measurement_review: *id005
+        issue: *id005
+      required:
+      - plan_without_process
+      - process_log
+      - import_pending
+      - import_failure
+      - measurement_review
+      - issue
+      x-db-column: false
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/DashboardTodoItem'
+      x-db-column: false
+  required:
+  - generated_at
+  - total
+  - counts
+  - items
+DashboardRecentPlan:
+  type: object
+  additionalProperties: false
+  properties:
+    entity_id: *id004
+    code: *id002
+    title: *id002
+    status: *id002
+    batch_id: &id006
+      anyOf:
+      - *id004
+      - type: 'null'
+      x-db-column: false
+    updated_at: &id007
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    can_continue: *id001
+    continue_label: *id002
+    kind:
+      type: string
+      enum:
+      - plan
+      x-db-column: false
+    path:
+      type: string
+      enum:
+      - /plans
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        plan_id: *id004
+      required:
+      - plan_id
+      x-db-column: false
+    continue_path:
+      type: string
+      enum:
+      - /plans
+      - /processes
+      x-db-column: false
+    continue_query:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        properties:
+          plan_id: *id004
+        required:
+        - plan_id
+      - type: object
+        additionalProperties: false
+        properties:
+          create:
+            type: string
+            enum:
+            - '1'
+          plan_id: *id004
+          batch_id: *id004
+        required:
+        - create
+        - plan_id
+      x-db-column: false
+  required:
+  - entity_id
+  - code
+  - title
+  - status
+  - batch_id
+  - updated_at
+  - can_continue
+  - continue_label
+  - kind
+  - path
+  - query
+  - continue_path
+  - continue_query
+DashboardRecentProcess:
+  type: object
+  additionalProperties: false
+  properties:
+    entity_id: *id004
+    code: *id002
+    title: *id002
+    status: *id002
+    batch_id: *id006
+    updated_at: *id007
+    can_continue: *id001
+    continue_label: *id002
+    kind:
+      type: string
+      enum:
+      - process
+      x-db-column: false
+    plan_id:
+      anyOf:
+      - *id004
+      - type: 'null'
+      x-db-column: false
+    archived: *id001
+    path:
+      type: string
+      enum:
+      - /processes
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        process_id: *id004
+      required:
+      - process_id
+      x-db-column: false
+    continue_path:
+      type: string
+      enum:
+      - /processes
+      x-db-column: false
+    continue_query:
+      type: object
+      additionalProperties: false
+      properties:
+        process_id: *id004
+      required:
+      - process_id
+      x-db-column: false
+  required:
+  - entity_id
+  - code
+  - title
+  - status
+  - batch_id
+  - updated_at
+  - can_continue
+  - continue_label
+  - kind
+  - plan_id
+  - archived
+  - path
+  - query
+  - continue_path
+  - continue_query
+DashboardRecentExperimentItem:
+  oneOf:
+  - $ref: '#/components/schemas/DashboardRecentPlan'
+  - $ref: '#/components/schemas/DashboardRecentProcess'
+DashboardRecentExperiments:
+  type: object
+  additionalProperties: false
+  properties:
+    generated_at: *id003
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/DashboardRecentExperimentItem'
+      x-db-column: false
+  required:
+  - generated_at
+  - items
+DashboardRecentImportJob:
+  type: object
+  additionalProperties: false
+  properties:
+    entity_id: *id004
+    code: &id008
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    title: *id002
+    status: *id002
+    hint: &id009
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    occurred_at: &id010
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    kind:
+      type: string
+      enum:
+      - import_job
+      x-db-column: false
+    path:
+      type: string
+      enum:
+      - /imports
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        job: *id004
+      required:
+      - job
+      x-db-column: false
+  required:
+  - entity_id
+  - code
+  - title
+  - status
+  - hint
+  - occurred_at
+  - kind
+  - path
+  - query
+DashboardRecentMeasurement:
+  type: object
+  additionalProperties: false
+  properties:
+    entity_id: *id004
+    code: *id008
+    title: *id002
+    status: *id002
+    hint: *id009
+    occurred_at: *id010
+    kind:
+      type: string
+      enum:
+      - measurement
+      x-db-column: false
+    path:
+      type: string
+      enum:
+      - /measurements
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id004
+      required:
+      - id
+      x-db-column: false
+    stage:
+      $ref: '#/components/schemas/MeasurementStage'
+      x-db-column: false
+    sample_id: *id004
+  required:
+  - entity_id
+  - code
+  - title
+  - status
+  - hint
+  - occurred_at
+  - kind
+  - path
+  - query
+  - stage
+  - sample_id
+DashboardRecentSourceFile:
+  type: object
+  additionalProperties: false
+  properties:
+    entity_id: *id004
+    code: *id008
+    title: *id002
+    status: *id002
+    hint: *id009
+    occurred_at: *id010
+    kind:
+      type: string
+      enum:
+      - source_file
+      x-db-column: false
+    path:
+      type: string
+      enum:
+      - /source-files
+      x-db-column: false
+    query:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id004
+      required:
+      - id
+      x-db-column: false
+    size_bytes:
+      anyOf:
+      - *id005
+      - type: 'null'
+      x-db-column: false
+  required:
+  - entity_id
+  - code
+  - title
+  - status
+  - hint
+  - occurred_at
+  - kind
+  - path
+  - query
+  - size_bytes
+DashboardRecentDataItem:
+  oneOf:
+  - $ref: '#/components/schemas/DashboardRecentImportJob'
+  - $ref: '#/components/schemas/DashboardRecentMeasurement'
+  - $ref: '#/components/schemas/DashboardRecentSourceFile'
+DashboardRecentData:
+  type: object
+  additionalProperties: false
+  properties:
+    generated_at: *id003
+    items:
+      type: array
+      items:
+        $ref: '#/components/schemas/DashboardRecentDataItem'
+      x-db-column: false
+  required:
+  - generated_at
+  - items

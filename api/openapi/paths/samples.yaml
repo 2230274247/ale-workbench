@@ -1,0 +1,779 @@
+/api/v1/batches:
+  get:
+    tags:
+    - 批次
+    summary: 批次列表
+    description: '批次是数据可比性的强制隔离边界。
+
+      默认按 deposit_date 降序。
+
+      admin 可访问全部；operator/viewer 仅自己的批次与样品，样品所属批次也须可见；无共享。'
+    operationId: listBatches
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/SortParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: status
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/BatchStatus
+    - name: anomaly_flag
+      in: query
+      description: 筛选异常批次
+      schema:
+        type: boolean
+    - name: material
+      in: query
+      schema:
+        type: string
+    - name: include_voided
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+        title: Include Voided
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Batch
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: implemented
+  post:
+    tags:
+    - 批次
+    summary: 创建批次
+    description: '需要 `batch:write` 权限。
+
+      admin 可访问全部；operator/viewer 仅自己的批次与样品，样品所属批次也须可见；无共享。'
+    operationId: createBatch
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/BatchCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Batch
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/batches/{id}:
+  get:
+    tags:
+    - 批次
+    summary: 批次详情
+    operationId: getBatch
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Batch
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: implemented
+    description: '
+
+      admin 可访问全部；operator/viewer 仅自己的批次与样品，样品所属批次也须可见；无共享。'
+  patch:
+    tags:
+    - 批次
+    summary: 更新批次
+    operationId: updateBatch
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/BatchUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Batch
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+    description: '
+
+      admin 可访问全部；operator/viewer 仅自己的批次与样品，样品所属批次也须可见；无共享。'
+  delete:
+    tags:
+    - 批次
+    summary: 删除批次
+    description: 仅管理员可删除。任何外键或通用实体科学依赖（包括样品/子样品、测量、流转、运行绑定等）存在时返回 409；即使数据库外键声明 CASCADE/SET NULL，应用层也不会级联删除或置空关联。样品创建会追加初始流转历史，因此通常不能直接删除。
+    operationId: deleteBatch
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+      '400':
+        description: 批次下有样品，无法删除
+        content:
+          application/json:
+            schema:
+              $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/batches/{id}/samples:
+  get:
+    tags:
+    - 批次
+    summary: 批次下的样品
+    operationId: listBatchSamples
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - name: include_voided
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+        title: Include Voided
+    - name: include_archived
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+        title: Include Archived
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/SampleBrief
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: implemented
+/api/v1/samples:
+  get:
+    tags:
+    - 样品
+    summary: 样品列表
+    description: '工作台的主列表。默认按 batch_id、sample_code 排序。
+
+      支持按批次、类型、状态、排除标记筛选。
+
+      admin 可访问全部；operator/viewer 仅自己的批次与样品，样品所属批次也须可见；无共享。'
+    operationId: listSamples
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - $ref: ../openapi.yaml#/components/parameters/SortParam
+    - $ref: ../openapi.yaml#/components/parameters/KeywordParam
+    - name: batch_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+    - name: sample_type
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/SampleType
+    - name: status
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/SampleStatus
+    - name: exclude_from_analysis
+      in: query
+      description: '按排除标记筛选。设为 false 可排除异常样品，
+
+        用于常规统计分析场景。
+
+        '
+      schema:
+        type: boolean
+    - name: parent_sample_id
+      in: query
+      description: 按母片筛选其小样
+      schema:
+        type: integer
+        format: int64
+    - name: include_voided
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+        title: Include Voided
+    - name: include_archived
+      in: query
+      required: false
+      schema:
+        type: boolean
+        default: false
+        title: Include Archived
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/Sample
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+    x-implementation-status: implemented
+  post:
+    tags:
+    - 样品
+    summary: 创建样品
+    description: '需要 `sample:write` 权限。
+
+      admin 可访问全部；operator/viewer 仅自己的批次与样品，样品所属批次也须可见；无共享。'
+    operationId: createSample
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/SampleCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Sample
+      '400':
+        $ref: ../openapi.yaml#/components/responses/BadRequest
+      '409':
+        description: 样品编码已存在
+        content:
+          application/json:
+            schema:
+              $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+    x-implementation-status: implemented
+/api/v1/samples/{id}:
+  get:
+    tags:
+    - 样品
+    summary: 样品详情
+    description: '返回样品完整信息，含批次、层级关系与统计。
+
+      admin 可访问全部；operator/viewer 仅自己的批次与样品，样品所属批次也须可见；无共享。'
+    operationId: getSample
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/SampleDetail
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    x-implementation-status: implemented
+  patch:
+    tags:
+    - 样品
+    summary: 更新样品
+    operationId: updateSample
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/SampleUpdate
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Sample
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+    description: '
+
+      admin 可访问全部；operator/viewer 仅自己的批次与样品，样品所属批次也须可见；无共享。'
+  delete:
+    tags:
+    - 样品
+    summary: 删除样品
+    description: 仅管理员可删除。任何外键或通用实体科学依赖（包括样品/子样品、测量、流转、运行绑定等）存在时返回 409；即使数据库外键声明 CASCADE/SET NULL，应用层也不会级联删除或置空关联。样品创建会追加初始流转历史，因此通常不能直接删除。
+    operationId: deleteSample
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '204':
+        description: 已删除
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/samples/{id}/evidence:
+  get:
+    tags:
+    - 样品
+    summary: 样品证据汇总
+    description: '汇总该样品的全部证据线：测量、派生结果、仪器数据集、关联问题。
+
+      对应视图 `v_sample_evidence`，回答"这片样品的结论有多少证据支撑"。
+
+      '
+    operationId: getSampleEvidence
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      sample:
+                        $ref: ../openapi.yaml#/components/schemas/SampleBrief
+                      n_measurements:
+                        type: integer
+                      n_derived_results:
+                        type: integer
+                      n_instrument_datasets:
+                        type: integer
+                      n_linked_issues:
+                        type: integer
+                      measurements:
+                        type: array
+                        items:
+                          $ref: ../openapi.yaml#/components/schemas/MeasurementBrief
+                      derived_results:
+                        type: array
+                        items:
+                          $ref: ../openapi.yaml#/components/schemas/DerivedResult
+                      instrument_datasets:
+                        type: array
+                        items:
+                          $ref: ../openapi.yaml#/components/schemas/InstrumentDataset
+                      linked_issues:
+                        type: array
+                        items:
+                          $ref: ../openapi.yaml#/components/schemas/Issue
+    x-implementation-status: planned
+/api/v1/samples/{id}/transitions:
+  get:
+    tags:
+    - 样品流转
+    summary: 样品流转时间线
+    description: 登录后按样品可见范围查询；admin 全部，operator/viewer 仅自己且批次可见的样品。按 transition_id 升序分页（追加序），不按 event_at；event_at 可为 null
+      或补录过去时间。 响应必含 context_redacted 布尔值；关联运行不可见时为 true，process_id/step_id/operator_user_id/location/note/measurement_id 均返回
+      null，状态轨迹仍保留。
+    operationId: listSampleTransitions
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/SampleTransition
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+  post:
+    tags:
+    - 样品流转
+    summary: 记录样品流转
+    description: admin/operator 可写，viewer 返回 403；应用相同所有权与关联可见性检查，越权资源返回 404。 expected_row_version 必填并匹配样品版本，否则 409。原子更新样品状态、递增样品
+      row_version 并追加历史（含审计）；历史无修改/删除接口。step_id 表示实际步骤完成之后，须属于给定 process_id；提供运行必须已绑定该样品，measurement_id 必须属于该样品（不符 422）。load：需
+      process_id，available → in_process 且无活动占用；unload：需同一活动运行，in_process → available/quarantined/consumed；装载和取出均指定 step_id
+      时取出 step_index 不得小于装载。占用根据最新 load/unload 的 transition_id 判断，跨运行重复装载返回 409。仅 load 可进入 in_process，离开必须 unload。receive/quarantine/dispose
+      分别要求 available/quarantined/consumed或lost（不符 422）；cut/measure/process 保持原状态。in_process 中其他事件必须提供活动运行，否则 409。
+    operationId: createSampleTransition
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/TransitionCreate
+    responses:
+      '201':
+        description: 已记录
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/SampleTransition
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    x-implementation-status: implemented
+/api/v1/transitions:
+  get:
+    tags:
+    - 样品流转
+    summary: 全部流转记录
+    description: 登录后按样品可见范围查询；admin 全部，operator/viewer 仅自己且批次可见的样品。按 transition_id 升序分页（追加序），不按 event_at；event_at 可为 null
+      或补录过去时间。 响应必含 context_redacted 布尔值；关联运行不可见时为 true，process_id/step_id/operator_user_id/location/note/measurement_id 均返回
+      null，状态轨迹仍保留。
+    operationId: listTransitions
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/PageParam
+    - $ref: ../openapi.yaml#/components/parameters/SizeParam
+    - name: sample_id
+      in: query
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    - name: event_type
+      in: query
+      schema:
+        $ref: ../openapi.yaml#/components/schemas/TransitionEventType
+    - name: date_from
+      in: query
+      schema:
+        type: string
+        format: date-time
+    - name: date_to
+      in: query
+      schema:
+        type: string
+        format: date-time
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: ../openapi.yaml#/components/schemas/SampleTransition
+                  meta:
+                    $ref: ../openapi.yaml#/components/schemas/PageMeta
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+/api/v1/batches/{id}/samples/batch:
+  post:
+    tags:
+    - 样品
+    summary: 批量创建样品
+    description: 需要 `sample:write` 权限。在一个批次下原子创建 1–50 个样品；批次必须可见。items 内 sample_code 必填且在请求内及全局唯一；parent_sample_id 可选，必须属于该批次、同
+      owner 且为母片/整片。任一编号冲突或校验失败整批回滚（409/422，消息含冲突的 sample_code）。归属继承批次 owner；成功返回 created[] 与 count。
+    operationId: createBatchSamples
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/BatchSampleCreate
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: object
+                    required:
+                    - created
+                    - count
+                    properties:
+                      created:
+                        type: array
+                        items:
+                          $ref: ../openapi.yaml#/components/schemas/Sample
+                      count:
+                        type: integer
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+/api/v1/batches/{id}/archive:
+  post:
+    tags:
+    - 批次
+    summary: 归档批次
+    description: admin/operator 且记录可见。expected_row_version 必填严格正整数，不匹配409；首次设置 archived_at 并递增版本。使用最新版本重复归档幂等；保留原科学状态与全部依赖。
+    operationId: archiveBatch
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/RecordArchive
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Batch
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+    x-implementation-status: implemented
+/api/v1/samples/{id}/void:
+  post:
+    tags:
+    - 样品
+    summary: 作废误建且未使用的样品
+    operationId: voidSample
+    x-implementation-status: implemented
+    description: writer（admin/operator）且样品可见。必填最新expected_row_version及去首尾空白的1..2000字符reason。只允许available、唯一无实际信息的初始receive、样品与流转均有创建审计、无任何科研/子样品/来源/多态关联的样品。保护或版本冲突409；作废不更改status/科学字段，不删除数据；禁止再编辑或新增关联。已作废时携带最新版本和相同原因返回当前记录，不再次递增；旧版本或不同原因409。
+    parameters:
+    - $ref: ../openapi.yaml#/components/parameters/IdPathParam
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/SampleVoid
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Sample
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+
+/api/v1/batches/code-status:
+  get:
+    tags:
+    - 批次
+    summary: 只读核查全局编号；其他账户冲突不返回身份信息
+    operationId: batchCodeStatus
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/BatchCodeStatus
+      '401':
+        description: 未登录
+      '403':
+        description: 无权限
+    parameters:
+    - name: code
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+/api/v1/batches/{id}/code:
+  patch:
+    tags:
+    - 批次
+    summary: 仅更正完全未使用批次的编号，保留身份与生命周期并审计原因
+    operationId: renameUnusedBatchCode
+    x-implementation-status: implemented
+    responses:
+      '200':
+        description: 成功
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/Batch
+      '401':
+        description: 未登录
+      '403':
+        description: 无权限
+      '404':
+        description: 不存在或不可见
+      '409':
+        description: 版本冲突、编号被占用或批次已有依赖
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/BatchCodeUpdate

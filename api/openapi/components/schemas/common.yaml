@@ -1,0 +1,194 @@
+# =====================================================================
+# ALE 实验工作台 · 通用响应与分页组件
+# OpenAPI 3.1.0
+# ---------------------------------------------------------------------
+# 设计要点:
+#   1. 统一响应包络 ApiEnvelope<T>：所有接口返回同一外层结构，
+#      前端可用单一拦截器处理 code/message/request_id。
+#   2. 错误格式兼容 RFC 9457 Problem Details，便于标准化工具处理。
+#   3. 分页采用 page/size 偏移式（数据量小，无需游标），
+#      返回 PageMeta 供前端分页组件直接使用。
+#   4. 金额/膜厚等十进制字段统一用 string 传输，避免 JS 浮点精度损失
+#      （数据库为 DECIMAL(14,6) 等定点类型，JSON number 会失真）。
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 统一响应包络
+# ---------------------------------------------------------------------
+ApiEnvelope:
+  type: object
+  description: 统一响应包络。所有接口（含错误）均返回此结构。
+  required: [code, message, request_id, timestamp]
+  properties:
+    code:
+      type: integer
+      format: int32
+      description: |
+        业务状态码。0 表示成功，非 0 表示业务错误。
+        注意与 HTTP 状态码分工：HTTP 状态码表达传输/协议层结果，
+        code 表达业务层结果。二者同时返回，前端以 code 为准。
+      examples: [0]
+    message:
+      type: string
+      description: 人类可读的提示信息（中文）。成功时为 "ok"。
+      examples: ["ok"]
+    data:
+      description: 业务数据。错误时为 null，或为 ErrorDetail。
+    request_id:
+      type: string
+      format: uuid
+      description: 请求追踪 ID。由服务端生成，写入日志，便于排障时定位。
+      examples: ["9f8b7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d"]
+    timestamp:
+      type: string
+      format: date-time
+      description: 服务端响应时间（ISO 8601，带时区）。
+      examples: ["2026-10-15T16:30:00+08:00"]
+
+# ---------------------------------------------------------------------
+# 错误详情
+# ---------------------------------------------------------------------
+ErrorDetail:
+  type: object
+  description: |
+    错误详情。字段命名参考 RFC 9457 (Problem Details for HTTP APIs)，
+    便于与标准错误处理工具链对接。
+  required: [type, title, status, code]
+  properties:
+    type:
+      type: string
+      description: 错误类型标识 URI（用于程序判断）。
+      examples: ["https://ale-workbench.local/errors/validation-failed"]
+    title:
+      type: string
+      description: 错误标题（简短，英文，供日志检索）。
+      examples: ["Validation Failed"]
+    status:
+      type: integer
+      description: HTTP 状态码。
+      examples: [400]
+    code:
+      type: integer
+      description: 业务错误码（与包络 code 一致）。
+      examples: [1001]
+    detail:
+      type: string
+      description: 错误详细说明（中文，面向用户）。
+      examples: ["样品编码 W01-S01 已存在"]
+    instance:
+      type: string
+      description: 出错的请求路径。
+      examples: ["/api/v1/samples"]
+    errors:
+      type: array
+      description: 字段级错误列表（校验失败时返回）。
+      items:
+        $ref: '#/FieldError'
+
+FieldError:
+  type: object
+  description: 单个字段的校验错误。
+  required: [field, message]
+  properties:
+    field:
+      type: string
+      description: 出错字段路径，支持嵌套（点号分隔）。
+      examples: ["sample_code"]
+    message:
+      type: string
+      description: 该字段的错误说明（中文）。
+      examples: ["样品编码格式不正确，应形如 W01-S01"]
+    rejected_value:
+      description: 被拒绝的原始值（便于前端回显定位）。
+      examples: ["W01 S01"]
+
+# ---------------------------------------------------------------------
+# 分页
+# ---------------------------------------------------------------------
+PageMeta:
+  type: object
+  description: 分页元信息。
+  required: [page, size, total, total_pages, has_next, has_prev]
+  properties:
+    page:
+      type: integer
+      minimum: 1
+      description: 当前页码（从 1 开始）。
+      examples: [1]
+    size:
+      type: integer
+      minimum: 1
+      maximum: 200
+      description: 每页条数。默认 20，上限 200。
+      examples: [20]
+    total:
+      type: integer
+      format: int64
+      description: 符合条件的总记录数。
+      examples: [137]
+    total_pages:
+      type: integer
+      description: 总页数。
+      examples: [7]
+    has_next:
+      type: boolean
+      description: 是否有下一页。
+      examples: [true]
+    has_prev:
+      type: boolean
+      description: 是否有上一页。
+      examples: [false]
+
+SortOrder:
+  type: string
+  enum: [asc, desc]
+  default: desc
+  description: 排序方向。
+
+# ---------------------------------------------------------------------
+# 可复用的查询参数
+# ---------------------------------------------------------------------
+parameters:
+  PageParam:
+    name: page
+    in: query
+    description: 页码，从 1 开始
+    schema:
+      type: integer
+      minimum: 1
+      default: 1
+  SizeParam:
+    name: size
+    in: query
+    description: 每页条数，1-200
+    schema:
+      type: integer
+      minimum: 1
+      maximum: 200
+      default: 20
+  SortParam:
+    name: sort
+    in: query
+    description: |
+      排序字段，前缀 `-` 表示降序。
+      多字段用逗号分隔，例如 `-created_at,batch_code`。
+      允许的字段见各接口说明，非法字段将被忽略并返回 1001 警告。
+    schema:
+      type: string
+      examples: ["-created_at"]
+  KeywordParam:
+    name: keyword
+    in: query
+    description: 关键字模糊搜索（作用于各资源的主要标识字段）
+    schema:
+      type: string
+      maxLength: 128
+  IdPathParam:
+    name: id
+    in: path
+    required: true
+    description: 资源主键 ID
+    schema:
+      type: integer
+      format: int64
+      minimum: 1

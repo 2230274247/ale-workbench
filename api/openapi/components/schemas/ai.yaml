@@ -1,0 +1,1959 @@
+AISettings:
+  additionalProperties: false
+  properties:
+    enabled:
+      default: false
+      title: Enabled
+      type: boolean
+      x-db-column: false
+    provider_name:
+      default: OpenAI-compatible
+      maxLength: 64
+      minLength: 1
+      title: Provider Name
+      type: string
+      x-db-column: false
+    base_url:
+      default: ''
+      maxLength: 255
+      title: Base Url
+      type: string
+      x-db-column: false
+    model:
+      default: ''
+      maxLength: 128
+      title: Model
+      type: string
+      x-db-column: false
+      pattern: ^(?:[A-Za-z0-9_.:/-]{1,128})?$
+    provider_options:
+      additionalProperties: true
+      title: Provider Options
+      type: object
+      x-db-column: false
+      default: {}
+      enum:
+      - {}
+      - thinking:
+          type: disabled
+    currency:
+      default: USD
+      pattern: ^[A-Z]{3}$
+      title: Currency
+      type: string
+      x-db-column: false
+    input_price_per_million:
+      anyOf:
+      - exclusiveMinimum: 0.0
+        maximum: 10000.0
+        type: number
+      - type: string
+      default: '1'
+      title: Input Price Per Million
+      x-python-type: Annotated[Decimal, Field(gt=0, le=10000, decimal_places=8)]
+      description: 接受JSON数值或Decimal字符串；最多8位小数，有限值。响应返回十进制字符串。
+      x-db-column: false
+    cached_input_price_per_million:
+      anyOf:
+      - maximum: 10000.0
+        minimum: 0.0
+        type: number
+      - type: string
+      default: '1'
+      title: Cached Input Price Per Million
+      x-python-type: Annotated[Decimal, Field(ge=0, le=10000, decimal_places=8)]
+      description: 接受JSON数值或Decimal字符串；最多8位小数，有限值。响应返回十进制字符串。
+      x-db-column: false
+    output_price_per_million:
+      anyOf:
+      - exclusiveMinimum: 0.0
+        maximum: 10000.0
+        type: number
+      - type: string
+      default: '1'
+      title: Output Price Per Million
+      x-python-type: Annotated[Decimal, Field(gt=0, le=10000, decimal_places=8)]
+      description: 接受JSON数值或Decimal字符串；最多8位小数，有限值。响应返回十进制字符串。
+      x-db-column: false
+    monthly_budget:
+      anyOf:
+      - exclusiveMinimum: 0.0
+        maximum: 1000000.0
+        type: number
+      - type: string
+      default: '10'
+      title: Monthly Budget
+      x-python-type: Annotated[Decimal, Field(gt=0, le=1000000, decimal_places=8)]
+      description: 接受JSON数值或Decimal字符串；最多8位小数，有限值。响应返回十进制字符串。
+      x-db-column: false
+    monthly_token_limit:
+      default: 2000000
+      maximum: 1000000000
+      minimum: 1000
+      title: Monthly Token Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    daily_call_limit:
+      default: 100
+      maximum: 100000
+      minimum: 1
+      title: Daily Call Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    user_daily_call_limit:
+      default: 20
+      maximum: 10000
+      minimum: 1
+      title: User Daily Call Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    admin_daily_call_limit:
+      default: 50
+      maximum: 10000
+      minimum: 1
+      title: Admin Daily Call Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    max_output_tokens:
+      default: 1024
+      maximum: 4096
+      minimum: 64
+      title: Max Output Tokens
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    max_tool_rounds:
+      default: 4
+      maximum: 4
+      minimum: 1
+      title: Max Tool Rounds
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    user_monthly_budget:
+      anyOf:
+      - maximum: 1000000.0
+        minimum: 0.0
+        type: number
+      - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d{0,8}0*$
+        type: string
+      default: '10'
+      title: User Monthly Budget
+      x-db-column: false
+      x-python-type: Annotated[Decimal, Field(ge=0, le=1000000, decimal_places=8)]
+      description: 每用户默认月预算，默认10，可为0，最大1000000，最多8位小数；响应Decimal字符串。
+    user_monthly_token_limit:
+      default: 2000000
+      maximum: 1000000000
+      minimum: 0
+      title: User Monthly Token Limit
+      type: integer
+      x-db-column: false
+      x-python-strict: true
+    user_policies:
+      additionalProperties:
+        $ref: '#/AIUserPolicy'
+      title: User Policies
+      type: object
+      x-db-column: false
+      default: {}
+      maxProperties: 10000
+      propertyNames:
+        pattern: ^[1-9][0-9]{0,18}$
+      description: 用户ID字符串到策略的映射。键必须规范正整数且≤9223372036854775807，最多10000项；仅admin可配置。
+      x-python-type: dict[str, AIUserPolicy]
+  title: AISettings
+  type: object
+  x-python-methods:
+  - '    @field_validator(''base_url'')'
+  - '    @classmethod'
+  - '    def endpoint(cls, value):'
+  - '        return validate_endpoint(value) if value else '''''
+  - ''
+  - '    @field_validator(''model'')'
+  - '    @classmethod'
+  - '    def model_id(cls, value):'
+  - '        if value and not re.fullmatch(r''[A-Za-z0-9_.:/-]{1,128}'', value): raise ValueError(''Invalid model'')'
+  - '        return value'
+  - ''
+  - '    @field_validator(''provider_options'')'
+  - '    @classmethod'
+  - '    def options(cls, value):'
+  - '        if value not in ({}, {''thinking'': {''type'': ''disabled''}}):'
+  - '            raise ValueError(''Only explicit thinking disabled is supported'')'
+  - '        return value'
+  - ''
+  - '    @model_validator(mode=''after'')'
+  - '    def valid(self):'
+  - '        if self.enabled and (not self.base_url or not self.model): raise ValueError(''Endpoint and discovered model required'')'
+  - '        if self.cached_input_price_per_million > self.input_price_per_million:'
+  - '            raise ValueError(''Cached input price cannot exceed regular input price'')'
+  - '        # This service deliberately supports nonthinking requests only. An empty'
+  - '        # option object is for compatible providers whose default is nonthinking.'
+  - '        return self'
+  - ''
+  - ''
+  - '    @field_validator(''user_policies'')'
+  - '    @classmethod'
+  - '    def policy_keys(cls, value):'
+  - '        if len(value) > 10000 or any(not re.fullmatch(r''[1-9][0-9]{0,18}'', k) or int(k) > 9223372036854775807 for k
+    in value):'
+  - '            raise ValueError(''User policies require canonical positive user IDs'')'
+  - '        return value'
+  x-python-validate-default: true
+AIConfigWrite:
+  additionalProperties: false
+  properties:
+    enabled:
+      default: false
+      title: Enabled
+      type: boolean
+      x-db-column: false
+    provider_name:
+      default: OpenAI-compatible
+      maxLength: 64
+      minLength: 1
+      title: Provider Name
+      type: string
+      x-db-column: false
+    base_url:
+      default: ''
+      maxLength: 255
+      title: Base Url
+      type: string
+      x-db-column: false
+    model:
+      default: ''
+      maxLength: 128
+      title: Model
+      type: string
+      x-db-column: false
+      pattern: ^(?:[A-Za-z0-9_.:/-]{1,128})?$
+    provider_options:
+      additionalProperties: true
+      title: Provider Options
+      type: object
+      x-db-column: false
+      default: {}
+      enum:
+      - {}
+      - thinking:
+          type: disabled
+    currency:
+      default: USD
+      pattern: ^[A-Z]{3}$
+      title: Currency
+      type: string
+      x-db-column: false
+    input_price_per_million:
+      anyOf:
+      - exclusiveMinimum: 0.0
+        maximum: 10000.0
+        type: number
+      - type: string
+      default: '1'
+      title: Input Price Per Million
+      x-python-type: Annotated[Decimal, Field(gt=0, le=10000, decimal_places=8)]
+      description: 接受JSON数值或Decimal字符串；最多8位小数，有限值。响应返回十进制字符串。
+      x-db-column: false
+    cached_input_price_per_million:
+      anyOf:
+      - maximum: 10000.0
+        minimum: 0.0
+        type: number
+      - type: string
+      default: '1'
+      title: Cached Input Price Per Million
+      x-python-type: Annotated[Decimal, Field(ge=0, le=10000, decimal_places=8)]
+      description: 接受JSON数值或Decimal字符串；最多8位小数，有限值。响应返回十进制字符串。
+      x-db-column: false
+    output_price_per_million:
+      anyOf:
+      - exclusiveMinimum: 0.0
+        maximum: 10000.0
+        type: number
+      - type: string
+      default: '1'
+      title: Output Price Per Million
+      x-python-type: Annotated[Decimal, Field(gt=0, le=10000, decimal_places=8)]
+      description: 接受JSON数值或Decimal字符串；最多8位小数，有限值。响应返回十进制字符串。
+      x-db-column: false
+    monthly_budget:
+      anyOf:
+      - exclusiveMinimum: 0.0
+        maximum: 1000000.0
+        type: number
+      - type: string
+      default: '10'
+      title: Monthly Budget
+      x-python-type: Annotated[Decimal, Field(gt=0, le=1000000, decimal_places=8)]
+      description: 接受JSON数值或Decimal字符串；最多8位小数，有限值。响应返回十进制字符串。
+      x-db-column: false
+    monthly_token_limit:
+      default: 2000000
+      maximum: 1000000000
+      minimum: 1000
+      title: Monthly Token Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    daily_call_limit:
+      default: 100
+      maximum: 100000
+      minimum: 1
+      title: Daily Call Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    user_daily_call_limit:
+      default: 20
+      maximum: 10000
+      minimum: 1
+      title: User Daily Call Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    admin_daily_call_limit:
+      default: 50
+      maximum: 10000
+      minimum: 1
+      title: Admin Daily Call Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    max_output_tokens:
+      default: 1024
+      maximum: 4096
+      minimum: 64
+      title: Max Output Tokens
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    max_tool_rounds:
+      default: 4
+      maximum: 4
+      minimum: 1
+      title: Max Tool Rounds
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    api_key:
+      anyOf:
+      - format: password
+        type: string
+        writeOnly: true
+        minLength: 8
+        maxLength: 512
+        pattern: ^[!-~]+$
+      - type: 'null'
+      default: null
+      title: Api Key
+      writeOnly: true
+      x-python-type: SecretStr | None
+      x-python-exclude: true
+      description: 仅写入，8..512个ASCII可见非空白字符；地址不变时null/省略保留旧密钥；base_url改变清除旧密钥，除非同时提供新api_key。clear_api_key清除；两者不能同时指定。响应绝不返回密钥或密文。
+      x-db-column: false
+    clear_api_key:
+      default: false
+      title: Clear Api Key
+      type: boolean
+      x-db-column: false
+    revision:
+      minimum: 0
+      title: Revision
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    user_monthly_budget:
+      anyOf:
+      - maximum: 1000000.0
+        minimum: 0.0
+        type: number
+      - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d{0,8}0*$
+        type: string
+      default: '10'
+      title: User Monthly Budget
+      x-db-column: false
+      x-python-type: Annotated[Decimal, Field(ge=0, le=1000000, decimal_places=8)]
+      description: 每用户默认月预算，默认10，可为0，最大1000000，最多8位小数；响应Decimal字符串。
+    user_monthly_token_limit:
+      default: 2000000
+      maximum: 1000000000
+      minimum: 0
+      title: User Monthly Token Limit
+      type: integer
+      x-db-column: false
+      x-python-strict: true
+    user_policies:
+      additionalProperties:
+        $ref: '#/AIUserPolicy'
+      title: User Policies
+      type: object
+      x-db-column: false
+      default: {}
+      maxProperties: 10000
+      propertyNames:
+        pattern: ^[1-9][0-9]{0,18}$
+      description: 用户ID字符串到策略的映射。键必须规范正整数且≤9223372036854775807，最多10000项；仅admin可配置。
+      x-python-type: dict[str, AIUserPolicy]
+  required:
+  - revision
+  title: ConfigWrite
+  type: object
+  x-python-methods:
+  - '    @field_validator(''base_url'')'
+  - '    @classmethod'
+  - '    def endpoint(cls, value):'
+  - '        return validate_endpoint(value) if value else '''''
+  - ''
+  - '    @field_validator(''model'')'
+  - '    @classmethod'
+  - '    def model_id(cls, value):'
+  - '        if value and not re.fullmatch(r''[A-Za-z0-9_.:/-]{1,128}'', value): raise ValueError(''Invalid model'')'
+  - '        return value'
+  - ''
+  - '    @field_validator(''provider_options'')'
+  - '    @classmethod'
+  - '    def options(cls, value):'
+  - '        if value not in ({}, {''thinking'': {''type'': ''disabled''}}):'
+  - '            raise ValueError(''Only explicit thinking disabled is supported'')'
+  - '        return value'
+  - ''
+  - '    @model_validator(mode=''after'')'
+  - '    def valid(self):'
+  - '        if self.enabled and (not self.base_url or not self.model): raise ValueError(''Endpoint and discovered model required'')'
+  - '        if self.cached_input_price_per_million > self.input_price_per_million:'
+  - '            raise ValueError(''Cached input price cannot exceed regular input price'')'
+  - '        # This service deliberately supports nonthinking requests only. An empty'
+  - '        # option object is for compatible providers whose default is nonthinking.'
+  - '        return self'
+  - ''
+  - '    @model_validator(mode=''after'')'
+  - '    def key_shape(self):'
+  - '        from urllib.parse import urlsplit'
+  - '        if urlsplit(self.base_url).hostname == ''api.deepseek.com'' and self.provider_options != {''thinking'': {''type'':
+    ''disabled''}}:'
+  - '            raise ValueError(''api.deepseek.com requires provider_options thinking.type disabled for this nonthinking
+    flow'')'
+  - '        if self.api_key is not None:'
+  - '            value = self.api_key.get_secret_value()'
+  - '            if not 8 <= len(value) <= 512 or any(ord(c) < 33 or ord(c) > 126 for c in value):'
+  - '                raise ValueError(''Invalid key'')'
+  - '        if self.clear_api_key and self.api_key is not None: raise ValueError(''Conflicting key action'')'
+  - '        return self'
+  - ''
+  - ''
+  - '    @field_validator(''user_policies'')'
+  - '    @classmethod'
+  - '    def policy_keys(cls, value):'
+  - '        if len(value) > 10000 or any(not re.fullmatch(r''[1-9][0-9]{0,18}'', k) or int(k) > 9223372036854775807 for k
+    in value):'
+  - '            raise ValueError(''User policies require canonical positive user IDs'')'
+  - '        return value'
+  description: 完整设置替换，非PATCH；api.deepseek.com（按hostname，不依赖模型名）必须显式provider_options={thinking:{type:disabled}}，否则422；旧空配置仍可GET读取修复，但test/chat在预留和外发前409阻止。其他服务商保留原默认。revision必填严格非负整数。先以空model保存端点/密钥，GET
+    models发现后再选择model；修改端点或密钥会清空发现列表；修改端点时未提供新api_key则清除旧密钥。启用须有端点、发现过的model和密钥。预算不得低于已记账与预留量；活动账期不能换币种。
+  x-python-validate-default: true
+AIContext:
+  additionalProperties: false
+  properties:
+    kind:
+      enum:
+      - sample
+      - batch
+      - plan
+      - process
+      - measurement
+      - none
+      title: Kind
+      type: string
+      x-db-column: false
+    id:
+      anyOf:
+      - maximum: 9223372036854775807
+        minimum: 1
+        type: integer
+        x-python-strict: true
+      - type: 'null'
+      default: null
+      title: Id
+      x-db-column: false
+  required:
+  - kind
+  title: Context
+  type: object
+  x-python-methods:
+  - '    @model_validator(mode=''after'')'
+  - '    def valid(self):'
+  - '        if (self.kind == ''none'') != (self.id is None): raise ValueError(''Context requires record ID'')'
+  - '        return self'
+  - ''
+  if:
+    properties:
+      kind:
+        const: none
+  then:
+    properties:
+      id:
+        type: 'null'
+  else:
+    required:
+    - id
+    properties:
+      id:
+        type: integer
+        minimum: 1
+        maximum: 9223372036854775807
+AIChatRequest:
+  additionalProperties: false
+  properties:
+    request_id:
+      format: uuid
+      title: Request Id
+      type: string
+      x-db-column: false
+    conversation_id:
+      anyOf:
+      - format: uuid
+        type: string
+      - type: 'null'
+      default: null
+      title: Conversation Id
+      x-db-column: false
+    message:
+      maxLength: 4000
+      minLength: 1
+      title: Message
+      type: string
+      x-db-column: false
+      pattern: \S
+    context:
+      anyOf:
+      - $ref: '#/AIContext'
+      - type: 'null'
+      default: null
+      x-db-column: false
+  required:
+  - request_id
+  - message
+  title: ChatBody
+  type: object
+  x-python-methods:
+  - '    @field_validator(''message'')'
+  - '    @classmethod'
+  - '    def nonempty(cls, value):'
+  - '        if not value.strip(): raise ValueError(''Message required'')'
+  - '        return value'
+  - ''
+AITestRequest:
+  additionalProperties: false
+  properties:
+    request_id:
+      format: uuid
+      title: Request Id
+      type: string
+      x-db-column: false
+  required:
+  - request_id
+  title: TestBody
+  type: object
+  x-python-methods: []
+AIStatus:
+  type: object
+  additionalProperties: false
+  properties:
+    enabled:
+      type: boolean
+      x-db-column: false
+    configured:
+      type: boolean
+      x-db-column: false
+  required:
+  - enabled
+  - configured
+AIConfig:
+  additionalProperties: false
+  properties:
+    enabled:
+      default: false
+      title: Enabled
+      type: boolean
+      x-db-column: false
+    provider_name:
+      default: OpenAI-compatible
+      maxLength: 64
+      minLength: 1
+      title: Provider Name
+      type: string
+      x-db-column: false
+    base_url:
+      default: ''
+      maxLength: 255
+      title: Base Url
+      type: string
+      x-db-column: false
+    model:
+      default: ''
+      maxLength: 128
+      title: Model
+      type: string
+      x-db-column: false
+    provider_options:
+      additionalProperties: true
+      title: Provider Options
+      type: object
+      x-db-column: false
+    currency:
+      default: USD
+      pattern: ^[A-Z]{3}$
+      title: Currency
+      type: string
+      x-db-column: false
+    input_price_per_million:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    cached_input_price_per_million:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    output_price_per_million:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    monthly_budget:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    monthly_token_limit:
+      default: 2000000
+      maximum: 1000000000
+      minimum: 1000
+      title: Monthly Token Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    daily_call_limit:
+      default: 100
+      maximum: 100000
+      minimum: 1
+      title: Daily Call Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    user_daily_call_limit:
+      default: 20
+      maximum: 10000
+      minimum: 1
+      title: User Daily Call Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    admin_daily_call_limit:
+      default: 50
+      maximum: 10000
+      minimum: 1
+      title: Admin Daily Call Limit
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    max_output_tokens:
+      default: 1024
+      maximum: 4096
+      minimum: 64
+      title: Max Output Tokens
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    max_tool_rounds:
+      default: 4
+      maximum: 4
+      minimum: 1
+      title: Max Tool Rounds
+      type: integer
+      x-python-strict: true
+      x-db-column: false
+    key_configured:
+      type: boolean
+      x-db-column: false
+    revision:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    configured:
+      type: boolean
+      x-db-column: false
+    updated_at:
+      anyOf:
+      - type: string
+        format: date-time
+        x-db-column: ai_config.updated_at
+      - type: 'null'
+      x-db-column: false
+    discovered_models:
+      type: array
+      items:
+        type: string
+      x-db-column: false
+    pricing_note:
+      type: string
+      x-db-column: false
+    user_monthly_budget:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+      default: '10'
+      description: 每用户默认月预算，默认10，可为0，最大1000000，最多8位小数；响应Decimal字符串。
+    user_monthly_token_limit:
+      default: 2000000
+      maximum: 1000000000
+      minimum: 0
+      title: User Monthly Token Limit
+      type: integer
+      x-db-column: false
+      x-python-strict: true
+    user_policies:
+      additionalProperties:
+        $ref: '#/AIUserPolicyView'
+      title: User Policies
+      type: object
+      x-db-column: false
+      default: {}
+      maxProperties: 10000
+      propertyNames:
+        pattern: ^[1-9][0-9]{0,18}$
+      description: 用户ID字符串到策略的映射。键必须规范正整数且≤9223372036854775807，最多10000项；仅admin可配置。
+  title: AISettings
+  type: object
+  required:
+  - enabled
+  - provider_name
+  - base_url
+  - model
+  - provider_options
+  - currency
+  - input_price_per_million
+  - cached_input_price_per_million
+  - output_price_per_million
+  - monthly_budget
+  - monthly_token_limit
+  - daily_call_limit
+  - user_daily_call_limit
+  - admin_daily_call_limit
+  - max_output_tokens
+  - max_tool_rounds
+  - key_configured
+  - revision
+  - configured
+  - updated_at
+  - discovered_models
+  - pricing_note
+  - user_monthly_budget
+  - user_monthly_token_limit
+  - user_policies
+AISourceKind:
+  type: string
+  enum:
+  - sample
+  - batch
+  - plan
+  - process
+  - measurement
+  - source_file
+  - transition
+AISource:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      $ref: '#/AISourceKind'
+      x-db-column: false
+    id:
+      type: integer
+      minimum: 1
+      x-db-column: false
+    href:
+      type: string
+      description: 服务器生成内部UI链接；transition使用sample_id
+      x-db-column: false
+  required:
+  - kind
+  - id
+  - href
+AIToolTrace:
+  type: object
+  additionalProperties: false
+  properties:
+    tool:
+      type: string
+      enum:
+      - search_records
+      - record_detail
+      - sample_timeline
+      - quality_hints
+      - unsupported
+      x-db-column: false
+    status:
+      type: string
+      enum:
+      - completed
+      - denied
+      x-db-column: false
+    sources:
+      type: array
+      items:
+        $ref: '#/AISource'
+      x-db-column: false
+    result_bytes:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    read_only:
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+    origin:
+      type: string
+      enum:
+      - current_context
+      - prior_plan
+      - model
+      x-db-column: false
+      description: 当前记录服务器预查 / 先前计划按当前权限重执行 / 本轮模型实际工具调用。旧持久化trace可能缺失。
+  required:
+  - tool
+  - status
+  - sources
+  - result_bytes
+  - read_only
+AIRequestStatus:
+  type: string
+  enum:
+  - pending
+  - completed
+  - failed
+AIResultError:
+  type: object
+  additionalProperties: false
+  properties:
+    code:
+      type: string
+      x-db-column: false
+    message:
+      type: string
+      x-db-column: false
+  required:
+  - code
+  - message
+  description: 请求级错误，位于HTTP200 data.error；包括request_in_progress、evidence_unavailable、configuration_changed、authorization_changed、ai_unavailable及provider/工具/限制错误。
+    恢复/租约错误含request_recovered、execution_fenced、turn_time_limit、accounting_period_changed；错误code保持开放字符串以容纳服务商安全错误。 provider
+    HTTP401=provider_auth_failed、402=provider_insufficient_balance、403=provider_permission_denied、400/422=provider_parameter_invalid、429=provider_rate_limited；这些明确拒绝不估算收费，不重试。5xx=provider_unavailable保守未知。finish_reason=length为provider_output_truncated，content_filter为provider_content_filtered，aborted/insufficient_system_resource为provider_generation_interrupted；隐藏截断答案，保留已测usage。均在HTTP200
+    data.error中，非本服务HTTP状态。
+AIRequestUsage:
+  type: object
+  additionalProperties: false
+  properties:
+    prompt_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    completion_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    cache_hit_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    cache_miss_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    charged_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    provider_calls:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    charged_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    estimated:
+      type: boolean
+      x-db-column: false
+    currency:
+      type: string
+      pattern: ^[A-Z]{3}$
+      x-db-column: false
+  required:
+  - prompt_tokens
+  - completion_tokens
+  - cache_hit_tokens
+  - cache_miss_tokens
+  - charged_tokens
+  - provider_calls
+  - charged_cost
+  - estimated
+  - currency
+AIResult:
+  type: object
+  additionalProperties: false
+  properties:
+    status:
+      $ref: '#/AIRequestStatus'
+      x-db-column: false
+    request_id:
+      type: string
+      format: uuid
+      x-db-column: false
+    conversation_id:
+      anyOf:
+      - type: string
+        format: uuid
+      - type: 'null'
+      x-db-column: false
+    answer:
+      anyOf:
+      - type: string
+      - type: 'null'
+      x-db-column: false
+    sources:
+      type: array
+      maxItems: 40
+      items:
+        $ref: '#/AISource'
+      x-db-column: false
+    tool_trace:
+      type: array
+      maxItems: 8
+      items:
+        $ref: '#/AIToolTrace'
+      x-db-column: false
+    usage:
+      anyOf:
+      - $ref: '#/AIRequestUsage'
+      - type: 'null'
+      x-db-column: false
+    error:
+      anyOf:
+      - $ref: '#/AIResultError'
+      - type: 'null'
+      x-db-column: false
+    replayed:
+      type: boolean
+      x-db-column: false
+    models:
+      type: array
+      maxItems: 200
+      items:
+        $ref: '#/components/schemas/AIModelMetadata'
+      x-db-column: false
+    recovery:
+      $ref: '#/AIResultRecovery'
+      x-db-column: false
+  required:
+  - status
+  - request_id
+  - conversation_id
+  - answer
+  - sources
+  - tool_trace
+  - usage
+  - error
+  description: 'pending: answer/usage=null，sources/trace空，error=request_in_progress，不含replayed。首次完成/失败含replayed=false和usage；models发现成功额外models。已结算原ID查询不外发、不重复计费；重新核验当前session、配置revision及全部证据，一致则返回原答案/来源/trace并replayed=true，否则status=failed、隐藏答案/来源/trace并给出authorization_changed、configuration_changed或evidence_unavailable。旧版本无证据请求保守隐藏。失败可有已执行工具trace，成功通常error=null。
+    恢复终态额外recovery，error=request_recovered；未派发预留释放，已测量保留真实量，unknown保守估算；对账后reconciliation_required=false。'
+AIPendingResult:
+  type: object
+  additionalProperties: false
+  properties:
+    status:
+      type: string
+      enum:
+      - pending
+      x-db-column: false
+    request_id:
+      type: string
+      format: uuid
+      x-db-column: false
+    conversation_id:
+      anyOf:
+      - type: string
+        format: uuid
+      - type: 'null'
+      x-db-column: false
+    answer:
+      type: 'null'
+      x-db-column: false
+    sources:
+      type: array
+      maxItems: 0
+      items:
+        $ref: '#/AISource'
+      x-db-column: false
+    tool_trace:
+      type: array
+      maxItems: 0
+      items:
+        $ref: '#/AIToolTrace'
+      x-db-column: false
+    usage:
+      type: 'null'
+      x-db-column: false
+    error:
+      $ref: '#/AIResultError'
+      x-db-column: false
+  required:
+  - status
+  - request_id
+  - conversation_id
+  - answer
+  - sources
+  - tool_trace
+  - usage
+  - error
+  description: AIPendingResult；详见AIResult重放语义。
+AICompletedResult:
+  type: object
+  additionalProperties: false
+  properties:
+    status:
+      type: string
+      enum:
+      - completed
+      x-db-column: false
+    request_id:
+      type: string
+      format: uuid
+      x-db-column: false
+    conversation_id:
+      anyOf:
+      - type: string
+        format: uuid
+      - type: 'null'
+      x-db-column: false
+    answer:
+      anyOf:
+      - type: string
+      - type: 'null'
+      x-db-column: false
+    sources:
+      type: array
+      maxItems: 40
+      items:
+        $ref: '#/AISource'
+      x-db-column: false
+    tool_trace:
+      type: array
+      maxItems: 8
+      items:
+        $ref: '#/AIToolTrace'
+      x-db-column: false
+    usage:
+      $ref: '#/AIRequestUsage'
+      x-db-column: false
+    error:
+      anyOf:
+      - $ref: '#/AIResultError'
+      - type: 'null'
+      x-db-column: false
+    replayed:
+      type: boolean
+      x-db-column: false
+    models:
+      type: array
+      maxItems: 200
+      items:
+        $ref: '#/components/schemas/AIModelMetadata'
+      x-db-column: false
+  required:
+  - status
+  - request_id
+  - conversation_id
+  - answer
+  - sources
+  - tool_trace
+  - usage
+  - error
+  - replayed
+  description: AICompletedResult；详见AIResult重放语义。
+AIFailedResult:
+  type: object
+  additionalProperties: false
+  properties:
+    status:
+      type: string
+      enum:
+      - failed
+      x-db-column: false
+    request_id:
+      type: string
+      format: uuid
+      x-db-column: false
+    conversation_id:
+      anyOf:
+      - type: string
+        format: uuid
+      - type: 'null'
+      x-db-column: false
+    answer:
+      type: 'null'
+    sources:
+      type: array
+      maxItems: 40
+      items:
+        $ref: '#/AISource'
+      x-db-column: false
+    tool_trace:
+      type: array
+      maxItems: 8
+      items:
+        $ref: '#/AIToolTrace'
+      x-db-column: false
+    usage:
+      $ref: '#/AIRequestUsage'
+      x-db-column: false
+    error:
+      anyOf:
+      - $ref: '#/AIResultError'
+      - type: 'null'
+      x-db-column: false
+    replayed:
+      type: boolean
+      x-db-column: false
+    models:
+      type: array
+      maxItems: 200
+      items:
+        $ref: '#/components/schemas/AIModelMetadata'
+      x-db-column: false
+    recovery:
+      $ref: '#/AIResultRecovery'
+      x-db-column: false
+  required:
+  - status
+  - request_id
+  - conversation_id
+  - answer
+  - sources
+  - tool_trace
+  - usage
+  - error
+  - replayed
+  description: AIFailedResult；详见AIResult重放语义。 恢复终态额外recovery，error=request_recovered；未派发预留释放，已测量保留真实量，unknown保守估算；对账后reconciliation_required=false。
+AITurnResult:
+  oneOf:
+  - $ref: '#/AIPendingResult'
+  - $ref: '#/AICompletedResult'
+  - $ref: '#/AIFailedResult'
+AIUsageSummary:
+  type: object
+  additionalProperties: false
+  properties:
+    request_count:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    estimated_requests:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    pending_requests:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    prompt_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    completion_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    cache_hit_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    cache_miss_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    provider_calls:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    charged_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: ai_budget_periods.charged_tokens
+    reserved_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: ai_budget_periods.reserved_tokens
+    monthly_token_limit:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    period:
+      type: string
+      pattern: ^\d{4}-\d{2}$
+      x-db-column: ai_budget_periods.period
+    scope:
+      type: string
+      enum:
+      - all_users
+      x-db-column: false
+    currency:
+      type: string
+      pattern: ^[A-Z]{3}$
+      x-db-column: false
+    charged_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: ai_budget_periods.charged_cost
+    reserved_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: ai_budget_periods.reserved_cost
+    monthly_budget:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    users:
+      type: array
+      items:
+        $ref: '#/AIUserUsage'
+      description: 当月有请求的用户分账，按owner_user_id升序；无请求用户不出现。
+      x-db-column: false
+  required:
+  - request_count
+  - estimated_requests
+  - pending_requests
+  - prompt_tokens
+  - completion_tokens
+  - cache_hit_tokens
+  - cache_miss_tokens
+  - provider_calls
+  - charged_tokens
+  - reserved_tokens
+  - monthly_token_limit
+  - period
+  - scope
+  - currency
+  - charged_cost
+  - reserved_cost
+  - monthly_budget
+  - users
+  description: admin当前UTC月全用户账本；含预留与估算，非供应商账单。过期租约惰性恢复；未知已派发费用保守保留，管理员凭证据对账。
+AIReconcileRequest:
+  additionalProperties: false
+  properties:
+    reconciliation_id:
+      format: uuid
+      title: Reconciliation Id
+      type: string
+      x-db-column: false
+    reason:
+      maxLength: 1000
+      minLength: 10
+      title: Reason
+      type: string
+      x-db-column: false
+    evidence:
+      maxLength: 2000
+      minLength: 10
+      title: Evidence
+      type: string
+      x-db-column: false
+    actual_prompt_tokens:
+      maximum: 1000000000
+      minimum: 0
+      title: Actual Prompt Tokens
+      type: integer
+      x-db-column: false
+      x-python-strict: true
+    actual_completion_tokens:
+      maximum: 1000000000
+      minimum: 0
+      title: Actual Completion Tokens
+      type: integer
+      x-db-column: false
+      x-python-strict: true
+    actual_cache_hit_tokens:
+      default: 0
+      maximum: 1000000000
+      minimum: 0
+      title: Actual Cache Hit Tokens
+      type: integer
+      x-db-column: false
+      x-python-strict: true
+    actual_cost:
+      anyOf:
+      - maximum: 1000000.0
+        minimum: 0.0
+        type: number
+      - type: string
+      title: Actual Cost
+      x-python-type: Annotated[Decimal, Field(ge=0, le=1000000, decimal_places=8)]
+      description: 非负有限金额，最大1000000，最多8位小数；接受JSON数值或Decimal字符串。
+      x-db-column: false
+  required:
+  - reconciliation_id
+  - reason
+  - evidence
+  - actual_prompt_tokens
+  - actual_completion_tokens
+  - actual_cost
+  title: ReconcileBody
+  type: object
+  x-python-methods:
+  - '    @model_validator(mode=''after'')'
+  - '    def meaningful(self):'
+  - '        if len(self.reason.strip()) < 10 or len(self.evidence.strip()) < 10:'
+  - '            raise ValueError(''Reason and provider billing evidence required'')'
+  - '        if self.actual_cache_hit_tokens > self.actual_prompt_tokens:'
+  - '            raise ValueError(''Invalid cached tokens'')'
+  - '        return self'
+  description: 仅admin；终态且usage_estimated=true的未知费用可对账一次。同reconciliation_id与完全相同submission重放幂等；同ID不同证据或第二个ID均409。reason/evidence去空白后至少10字符，不自动trim。cache
+    hit不得超过prompt。
+AIResultRecovery:
+  type: object
+  additionalProperties: false
+  properties:
+    recovered:
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+    unknown_calls:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    reconciliation_required:
+      type: boolean
+      x-db-column: false
+  required:
+  - recovered
+  - unknown_calls
+  - reconciliation_required
+AIAccountRecovery:
+  type: object
+  additionalProperties: false
+  properties:
+    at:
+      type: string
+      description: 服务器UTC无时区ISO时间字符串（存储元数据原值）。
+      x-db-column: false
+    unknown_calls:
+      type: integer
+      minimum: 0
+      x-db-column: false
+  required:
+  - at
+  - unknown_calls
+AIOriginalUsage:
+  type: object
+  additionalProperties: false
+  properties:
+    prompt_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    completion_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    cache_hit_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    cache_miss_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    charged_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    charged_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+  required:
+  - prompt_tokens
+  - completion_tokens
+  - cache_hit_tokens
+  - cache_miss_tokens
+  - charged_tokens
+  - charged_cost
+AIReconciliationAudit:
+  type: object
+  additionalProperties: false
+  properties:
+    reconciliation_id:
+      type: string
+      format: uuid
+      x-db-column: false
+    at:
+      type: string
+      x-db-column: false
+    actor_user_id:
+      type: integer
+      minimum: 1
+      x-db-column: false
+    submission:
+      $ref: '#/AIReconcileRequest'
+      x-db-column: false
+    original_usage:
+      $ref: '#/AIOriginalUsage'
+      x-db-column: false
+    original_result_usage:
+      anyOf:
+      - $ref: '#/AIRequestUsage'
+      - type: 'null'
+      x-db-column: false
+  required:
+  - reconciliation_id
+  - at
+  - actor_user_id
+  - submission
+  - original_usage
+  - original_result_usage
+AIRequestAccountOwner:
+  type: object
+  additionalProperties: false
+  properties:
+    request_id:
+      type: string
+      format: uuid
+      x-db-column: false
+    conversation_id:
+      anyOf:
+      - &id001
+        type: string
+        format: uuid
+      - type: 'null'
+      x-db-column: false
+    purpose:
+      type: string
+      enum:
+      - chat
+      - test
+      - models
+      x-db-column: false
+    status:
+      $ref: '#/AIRequestStatus'
+      x-db-column: false
+    created_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    finished_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      x-db-column: false
+    lease_expires_at:
+      anyOf:
+      - type: string
+      - type: 'null'
+      x-db-column: false
+    heartbeat_at:
+      anyOf:
+      - type: string
+      - type: 'null'
+      x-db-column: false
+    dispatched_calls:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    charged_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    charged_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    usage_estimated:
+      type: boolean
+      x-db-column: false
+    recovery:
+      anyOf:
+      - $ref: '#/AIAccountRecovery'
+      - type: 'null'
+      x-db-column: false
+    reconciled:
+      type: boolean
+      x-db-column: false
+  required:
+  - request_id
+  - conversation_id
+  - purpose
+  - status
+  - created_at
+  - finished_at
+  - lease_expires_at
+  - heartbeat_at
+  - dispatched_calls
+  - charged_tokens
+  - charged_cost
+  - usage_estimated
+  - recovery
+  - reconciled
+  description: 普通登录用户本人账目。无prompt、answer、内部execution token或证据；recovery元数据不含原执行token。lease/heartbeat为UTC无时区ISO字符串或null。
+AIRequestAccountAdmin:
+  type: object
+  additionalProperties: false
+  properties:
+    request_id:
+      type: string
+      format: uuid
+      x-db-column: false
+    conversation_id:
+      anyOf:
+      - type: string
+        format: uuid
+      - type: 'null'
+      x-db-column: false
+    purpose:
+      type: string
+      enum:
+      - chat
+      - test
+      - models
+      x-db-column: false
+    status:
+      $ref: '#/AIRequestStatus'
+      x-db-column: false
+    created_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    finished_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      x-db-column: false
+    lease_expires_at:
+      anyOf:
+      - type: string
+      - type: 'null'
+      x-db-column: false
+    heartbeat_at:
+      anyOf:
+      - type: string
+      - type: 'null'
+      x-db-column: false
+    dispatched_calls:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    charged_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    charged_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    usage_estimated:
+      type: boolean
+      x-db-column: false
+    recovery:
+      anyOf:
+      - $ref: '#/AIAccountRecovery'
+      - type: 'null'
+      x-db-column: false
+    reconciled:
+      type: boolean
+      x-db-column: false
+    owner_user_id:
+      type: integer
+      minimum: 1
+      x-db-column: false
+    period:
+      type: string
+      pattern: ^\d{4}-\d{2}$
+      x-db-column: false
+    reserved_tokens:
+      type: integer
+      minimum: 0
+      x-db-column: false
+    reserved_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    reconciliation_history:
+      type: array
+      items:
+        $ref: '#/AIReconciliationAudit'
+      maxItems: 1
+      x-db-column: false
+  required:
+  - request_id
+  - conversation_id
+  - purpose
+  - status
+  - created_at
+  - finished_at
+  - lease_expires_at
+  - heartbeat_at
+  - dispatched_calls
+  - charged_tokens
+  - charged_cost
+  - usage_estimated
+  - recovery
+  - reconciled
+  - owner_user_id
+  - period
+  - reserved_tokens
+  - reserved_cost
+  - reconciliation_history
+  description: 仅admin全部请求账目；额外owner/账期/原始预留及一次对账审计。reserved_*为该请求原始预留快照，终态不代表仍有活动预留；活动预留查usage。
+AIRequestAccount:
+  oneOf:
+  - $ref: '#/AIRequestAccountOwner'
+  - $ref: '#/AIRequestAccountAdmin'
+AIRequestList:
+  type: object
+  additionalProperties: false
+  properties:
+    requests:
+      type: array
+      items:
+        $ref: '#/AIRequestAccount'
+      maxItems: 100
+      x-db-column: false
+    limit:
+      type: integer
+      enum:
+      - 100
+      x-db-column: false
+  required:
+  - requests
+  - limit
+  description: 最近100条，created_at/request_id倒序；无分页及查询参数。普通用户本人；admin全用户。GET同时惰性恢复过期请求。
+AIRecoverResult:
+  type: object
+  additionalProperties: false
+  properties:
+    recovered_request_ids:
+      type: array
+      items: *id001
+      x-db-column: false
+    recovered_count:
+      type: integer
+      minimum: 0
+      x-db-column: false
+  required:
+  - recovered_request_ids
+  - recovered_count
+AIModelEffort:
+  type: object
+  additionalProperties: false
+  properties:
+    supported_levels:
+      type: array
+      maxItems: 10
+      items:
+        type: string
+        pattern: ^[a-z_-]{1,32}$
+      x-db-column: false
+    default_level:
+      type: string
+      pattern: ^[a-z_-]{1,32}$
+      x-db-column: false
+  required:
+  - supported_levels
+AIModelCapabilities:
+  type: object
+  additionalProperties: false
+  properties:
+    anthropic_messages:
+      type: object
+      additionalProperties: false
+      properties:
+        system_prompt_update:
+          type: string
+          enum:
+          - leading-only
+          - in-history
+      required:
+      - system_prompt_update
+      x-db-column: false
+  required:
+  - anthropic_messages
+AIModelMetadata:
+  type: object
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      pattern: ^[A-Za-z0-9_.:/-]{1,128}$
+      x-db-column: false
+    name:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[^\x00-\x1f]+$
+      x-db-column: false
+    owned_by:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[^\x00-\x1f]+$
+      x-db-column: false
+    context_window:
+      type: integer
+      minimum: 1
+      maximum: 1000000000
+      x-python-strict: true
+      x-db-column: false
+    max_output_tokens:
+      type: integer
+      minimum: 1
+      maximum: 1000000000
+      x-python-strict: true
+      x-db-column: false
+    input_modalities:
+      type: array
+      maxItems: 8
+      items:
+        type: string
+        pattern: ^[a-z_-]{1,32}$
+      x-db-column: false
+    output_modalities:
+      type: array
+      maxItems: 8
+      items:
+        type: string
+        pattern: ^[a-z_-]{1,32}$
+      x-db-column: false
+    effort:
+      $ref: '#/components/schemas/AIModelEffort'
+      x-db-column: false
+    api_capabilities:
+      $ref: '#/components/schemas/AIModelCapabilities'
+      x-db-column: false
+  required:
+  - id
+  description: 供应商实际返回并经白名单裁剪的可选元数据；不根据模型ID推断能力。仅GET /ai/models发现结果，不注册科学分析工具。
+AIUserPolicy:
+  additionalProperties: false
+  properties:
+    monthly_budget:
+      anyOf:
+      - maximum: 1000000.0
+        minimum: 0.0
+        type: number
+      - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d{0,8}0*$
+        type: string
+      - type: 'null'
+      default: null
+      title: Monthly Budget
+      x-python-type: Annotated[Decimal, Field(ge=0, le=1000000, decimal_places=8)] | None
+      x-db-column: false
+      description: null或省略继承用户默认额度。
+    monthly_token_limit:
+      anyOf:
+      - maximum: 1000000000
+        minimum: 0
+        type: integer
+        x-python-strict: true
+      - type: 'null'
+      default: null
+      title: Monthly Token Limit
+      x-python-type: Annotated[int, Field(strict=True, ge=0, le=1000000000)] | None
+      x-db-column: false
+      description: null或省略继承用户默认额度。
+    research_ai_allowed:
+      anyOf:
+      - type: boolean
+      - type: 'null'
+      default: null
+      title: Research Ai Allowed
+      x-db-column: false
+      description: null或省略按账户用途取默认值；management科研AI默认拒绝，只有admin显式true允许。
+    external_send_allowed:
+      anyOf:
+      - type: boolean
+      - type: 'null'
+      default: null
+      title: External Send Allowed
+      x-db-column: false
+      description: null或省略按账户用途取默认值；testing默认拒绝外发，只有admin显式true允许，用户同意不能覆盖。
+  title: AIUserPolicy
+  type: object
+AIUserPolicyView:
+  additionalProperties: false
+  properties:
+    monthly_budget:
+      anyOf:
+      - type: string
+        pattern: ^\d+(?:\.\d+)?$
+        x-db-column: false
+      - type: 'null'
+      default: null
+      x-db-column: false
+    monthly_token_limit:
+      anyOf:
+      - maximum: 1000000000
+        minimum: 0
+        type: integer
+        x-python-strict: true
+      - type: 'null'
+      default: null
+      title: Monthly Token Limit
+      x-python-type: Annotated[int, Field(strict=True, ge=0, le=1000000000)] | None
+      x-db-column: false
+      description: null或省略继承用户默认额度。
+    research_ai_allowed:
+      anyOf:
+      - type: boolean
+      - type: 'null'
+      default: null
+      title: Research Ai Allowed
+      x-db-column: false
+      description: null或省略按账户用途取默认值；management科研AI默认拒绝，只有admin显式true允许。
+    external_send_allowed:
+      anyOf:
+      - type: boolean
+      - type: 'null'
+      default: null
+      title: External Send Allowed
+      x-db-column: false
+      description: null或省略按账户用途取默认值；testing默认拒绝外发，只有admin显式true允许，用户同意不能覆盖。
+  title: AIUserPolicy
+  type: object
+AIUserUsage:
+  type: object
+  additionalProperties: false
+  properties:
+    owner_user_id:
+      type: integer
+      format: int64
+      minimum: 1
+    charged_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    charged_tokens:
+      type: integer
+      minimum: 0
+    reserved_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    reserved_tokens:
+      type: integer
+      minimum: 0
+    monthly_budget:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    monthly_token_limit:
+      type: integer
+      minimum: 0
+  required:
+  - owner_user_id
+  - charged_cost
+  - charged_tokens
+  - reserved_cost
+  - reserved_tokens
+  - monthly_budget
+  - monthly_token_limit
+  description: 按owner_user_id的当前月分账；已记账包含恢复与对账，预留仅累计pending；预算为覆盖后有效额度。
+AIMyUsage:
+  type: object
+  additionalProperties: false
+  properties:
+    period:
+      type: string
+      pattern: ^\d{4}-\d{2}$
+    scope:
+      type: string
+      enum:
+      - current_user
+    currency:
+      type: string
+      pattern: ^[A-Z]{3}$
+    owner_user_id:
+      type: integer
+      format: int64
+      minimum: 1
+    charged_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    charged_tokens:
+      type: integer
+      minimum: 0
+    reserved_cost:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    reserved_tokens:
+      type: integer
+      minimum: 0
+    monthly_budget:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    monthly_token_limit:
+      type: integer
+      minimum: 0
+  required:
+  - period
+  - scope
+  - currency
+  - owner_user_id
+  - charged_cost
+  - charged_tokens
+  - reserved_cost
+  - reserved_tokens
+  - monthly_budget
+  - monthly_token_limit
+  description: 本人当前UTC月分账；无请求时记账与预留均为零，不暴露其他用户。
+AIPolicy:
+  type: object
+  additionalProperties: false
+  properties:
+    account_purpose:
+      $ref: '#/components/schemas/AccountPurpose'
+    research_ai_allowed:
+      type: boolean
+    denial_reason:
+      type:
+      - string
+      - 'null'
+      enum:
+      - null
+      - account_purpose_invalid
+      - testing_external_send_denied
+      - research_ai_denied
+    external_send_allowed:
+      type: boolean
+    monthly_budget:
+      type: string
+      pattern: ^\d+(?:\.\d+)?$
+      x-db-column: false
+    monthly_token_limit:
+      type: integer
+      minimum: 0
+  required:
+  - account_purpose
+  - research_ai_allowed
+  - denial_reason
+  - external_send_allowed
+  - monthly_budget
+  - monthly_token_limit
+  description: 本人有效策略；research_ai_allowed为账户策略判断结果，不表示全局AI已启用或已配置。management默认拒绝科研AI；testing默认拒绝外发；需admin user_policies显式true允许。testing外发拒绝优先于科研AI拒绝。

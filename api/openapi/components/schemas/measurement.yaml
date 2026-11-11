@@ -1,0 +1,2643 @@
+MeasurementStage:
+  type: string
+  enum:
+  - initial
+  - after_o2_plasma
+  - after_o3_pre
+  - after_ale
+  - after_hf_only
+  - after_o3_only
+  - intermediate
+  - final
+  - other
+  description: '测量阶段。区分测量处于工艺链的哪个位置。
+
+
+    本字段使「中间测厚的缺失」成为可查询事实——
+
+    EXP-07 与 ISS-07 都强调：没有 O3 阶段结束时的中间测厚，
+
+    就不能把净差值全部归于 HF-TMA。
+
+    '
+  examples:
+  - initial
+MeasurementQualityFlag:
+  type: string
+  enum:
+  - ok
+  - suspect
+  - abnormal
+  - excluded
+  description: '测量质量标记。
+
+    - `suspect`  拟合质量可疑（如 B05-S08 处理前某点 MSE=20.58）
+
+    - `abnormal` 异常
+
+    - `excluded` 已排除
+
+    **注意：标记不等于删除，异常值保留并优先复核（ISS-08）。**
+
+    '
+Measurement:
+  type: object
+  properties:
+    sample_code: {type: [string, 'null']}
+    process_code: {type: [string, 'null']}
+    plan_title: {type: [string, 'null']}
+    optical_model_name: {type: [string, 'null']}
+    measurement_id:
+      type: integer
+      readOnly: true
+      x-db-column: measurements.measurement_id
+    measurement_code:
+      type: string
+      readOnly: true
+      x-db-column: measurements.measurement_code
+    sample_id:
+      type: integer
+      readOnly: true
+      x-db-column: measurements.sample_id
+    process_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.process_id
+    tool_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.tool_id
+    optical_model_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.optical_model_id
+    stage:
+      type: string
+      readOnly: true
+      x-db-column: measurements.stage
+      $ref: '#/MeasurementStage'
+    stage_seq:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.stage_seq
+    cumulative_cycles:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.cumulative_cycles
+    measured_at:
+      anyOf:
+      - type: string
+        format: date-time
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.measured_at
+    operator_user_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.operator_user_id
+    point_count:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.point_count
+    thickness_mean_nm:
+      anyOf:
+      - type: string
+        x-db-type: decimal(14,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.thickness_mean_nm
+    thickness_sd_nm:
+      anyOf:
+      - type: string
+        x-db-type: decimal(14,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.thickness_sd_nm
+    thickness_min_nm:
+      anyOf:
+      - type: string
+        x-db-type: decimal(14,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.thickness_min_nm
+    thickness_max_nm:
+      anyOf:
+      - type: string
+        x-db-type: decimal(14,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.thickness_max_nm
+    mse_mean:
+      anyOf:
+      - type: string
+        x-db-type: decimal(14,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.mse_mean
+    mse_max:
+      anyOf:
+      - type: string
+        x-db-type: decimal(14,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.mse_max
+    gof_mean:
+      anyOf:
+      - type: string
+        x-db-type: decimal(14,8)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.gof_mean
+    wafer_size:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.wafer_size
+    grid_desc:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.grid_desc
+    supersedes_measurement_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.supersedes_measurement_id
+    is_current:
+      type: boolean
+      readOnly: true
+      x-db-column: measurements.is_current
+    supersede_reason:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.supersede_reason
+    quality_flag:
+      type: string
+      readOnly: true
+      x-db-column: measurements.quality_flag
+      $ref: '#/MeasurementQualityFlag'
+    quality_note:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.quality_note
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+      x-db-column: measurements.created_at
+    updated_at:
+      type: string
+      format: date-time
+      readOnly: true
+      x-db-column: measurements.updated_at
+    source_file_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.source_file_id
+    import_item_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.import_item_id
+    import_locator:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.import_locator
+    row_version:
+      type: integer
+      readOnly: true
+      x-db-column: measurements.row_version
+    provenance:
+      anyOf:
+      - {}
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurements.provenance
+  required:
+  - measurement_id
+  - measurement_code
+  - sample_id
+  - process_id
+  - tool_id
+  - optical_model_id
+  - stage
+  - stage_seq
+  - cumulative_cycles
+  - measured_at
+  - operator_user_id
+  - point_count
+  - thickness_mean_nm
+  - thickness_sd_nm
+  - thickness_min_nm
+  - thickness_max_nm
+  - mse_mean
+  - mse_max
+  - gof_mean
+  - wafer_size
+  - grid_desc
+  - supersedes_measurement_id
+  - is_current
+  - supersede_reason
+  - quality_flag
+  - quality_note
+  - created_at
+  - updated_at
+  - source_file_id
+  - import_item_id
+  - import_locator
+  - row_version
+  - provenance
+  x-db-table: measurements
+MeasurementDetail:
+  allOf:
+  - $ref: '#/Measurement'
+  - type: object
+    properties:
+      points:
+        type: array
+        items:
+          $ref: '#/MeasurementPoint'
+    required:
+    - points
+MeasurementBrief:
+  type: object
+  required:
+  - measurement_id
+  - measurement_code
+  - stage
+  - is_current
+  properties:
+    measurement_id:
+      type: integer
+      format: int64
+    measurement_code:
+      type: string
+    stage:
+      $ref: '#/MeasurementStage'
+    stage_seq:
+      type:
+      - integer
+      - 'null'
+    thickness_mean_nm:
+      type:
+      - string
+      - 'null'
+    is_current:
+      type: boolean
+    quality_flag:
+      $ref: '#/MeasurementQualityFlag'
+MeasurementCreate:
+  type: object
+  required:
+  - measurement_code
+  - sample_id
+  - stage
+  properties:
+    measurement_code:
+      type: string
+      maxLength: 96
+    sample_id:
+      type: integer
+      format: int64
+    process_id:
+      type: integer
+      format: int64
+    tool_id:
+      type: integer
+      format: int64
+    optical_model_id:
+      type: integer
+      format: int64
+    stage:
+      $ref: '#/MeasurementStage'
+    stage_seq:
+      type: integer
+    cumulative_cycles:
+      type: integer
+    measured_at:
+      type: string
+      format: date-time
+    point_count:
+      type: integer
+    thickness_mean_nm:
+      type: string
+    thickness_sd_nm:
+      type: string
+    thickness_min_nm:
+      type: string
+    thickness_max_nm:
+      type: string
+    mse_mean:
+      type: string
+    mse_max:
+      type: string
+    gof_mean:
+      type: string
+    wafer_size:
+      type: string
+    grid_desc:
+      type: string
+    quality_flag:
+      $ref: '#/MeasurementQualityFlag'
+    quality_note:
+      type: string
+    points:
+      type: array
+      description: 可随测量一并提交点级数据
+      items:
+        $ref: '#/MeasurementPointCreate'
+MeasurementUpdate:
+  type: object
+  properties:
+    expected_row_version:
+      type: integer
+      exclusiveMinimum: 0
+    quality_flag:
+      $ref: '#/MeasurementQualityFlag'
+      default: ok
+    quality_note:
+      anyOf:
+      - type: string
+        maxLength: 20000
+      - type: 'null'
+  required:
+  - expected_row_version
+  additionalProperties: false
+  anyOf:
+  - required:
+    - quality_flag
+  - required:
+    - quality_note
+  x-python-strict: true
+  x-at-least-one-fields:
+  - quality_flag
+  - quality_note
+  description: 仅质量更新；至少显式提交 quality_flag 或 quality_note。只更新实际提交字段；变化时将依赖结果 is_valid=false；版本递增。
+SupersedeRequest:
+  type: object
+  description: '将某次测量标记为被取代。
+
+    取代后：原测量 is_current=false，新测量 is_current=true，
+
+    且新测量 supersedes_measurement_id 指向原测量。
+
+    依赖原测量的派生结果将被标记为需重算。
+
+    '
+  required:
+  - superseded_measurement_id
+  - reason
+  properties:
+    superseded_measurement_id:
+      type: integer
+      format: int64
+      description: 被取代的测量 ID
+    reason:
+      type: string
+      minLength: 4
+      description: 取代原因（必填，写入 supersede_reason）
+      examples:
+      - 二次测量，原始光谱拟合质量偏低
+MeasurementPoint:
+  type: object
+  properties:
+    point_id:
+      type: integer
+      readOnly: true
+      x-db-column: measurement_points.point_id
+    measurement_id:
+      type: integer
+      readOnly: true
+      x-db-column: measurement_points.measurement_id
+    point_no:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.point_no
+    x_mm:
+      anyOf:
+      - type: string
+        x-db-type: decimal(12,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.x_mm
+    y_mm:
+      anyOf:
+      - type: string
+        x-db-type: decimal(12,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.y_mm
+    thickness_nm:
+      anyOf:
+      - type: string
+        x-db-type: decimal(14,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.thickness_nm
+    intensity:
+      anyOf:
+      - type: string
+        x-db-type: decimal(16,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.intensity
+    height_mm:
+      anyOf:
+      - type: string
+        x-db-type: decimal(12,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.height_mm
+    mse:
+      anyOf:
+      - type: string
+        x-db-type: decimal(14,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.mse
+    gof:
+      anyOf:
+      - type: string
+        x-db-type: decimal(16,10)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.gof
+    aoi_deg:
+      anyOf:
+      - type: string
+        x-db-type: decimal(8,3)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.aoi_deg
+    fit_iter:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.fit_iter
+    lbh:
+      anyOf:
+      - type: string
+        x-db-type: decimal(12,6)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.lbh
+    fit_time_ms:
+      anyOf:
+      - type: string
+        x-db-type: decimal(12,3)
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.fit_time_ms
+    dispersion_params:
+      anyOf:
+      - {}
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.dispersion_params
+    source_file_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.source_file_id
+    source_sheet:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.source_sheet
+    source_row:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.source_row
+    source_cell:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.source_cell
+    is_outlier:
+      type: boolean
+      readOnly: true
+      x-db-column: measurement_points.is_outlier
+    outlier_note:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.outlier_note
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+      x-db-column: measurement_points.created_at
+    raw_values:
+      anyOf:
+      - {}
+      - type: 'null'
+      readOnly: true
+      x-db-column: measurement_points.raw_values
+  required:
+  - point_id
+  - measurement_id
+  - point_no
+  - x_mm
+  - y_mm
+  - thickness_nm
+  - intensity
+  - height_mm
+  - mse
+  - gof
+  - aoi_deg
+  - fit_iter
+  - lbh
+  - fit_time_ms
+  - dispersion_params
+  - source_file_id
+  - source_sheet
+  - source_row
+  - source_cell
+  - is_outlier
+  - outlier_note
+  - created_at
+  - raw_values
+  x-db-table: measurement_points
+MeasurementPointCreate:
+  type: object
+  properties:
+    point_no:
+      type: integer
+    x_mm:
+      type: string
+      x-db-type: decimal(12,6)
+    y_mm:
+      type: string
+      x-db-type: decimal(12,6)
+    thickness_nm:
+      type: string
+      x-db-type: decimal(14,6)
+    intensity:
+      type: string
+    height_mm:
+      type: string
+    mse:
+      type: string
+    gof:
+      type: string
+    aoi_deg:
+      type: string
+    fit_iter:
+      type: integer
+    lbh:
+      type: string
+    fit_time_ms:
+      type: string
+    dispersion_params:
+      type: object
+      additionalProperties: true
+    source_file_id:
+      type: integer
+      format: int64
+    source_sheet:
+      type: string
+    source_row:
+      type: integer
+    source_cell:
+      type: string
+    is_outlier:
+      type: boolean
+    outlier_note:
+      type: string
+MeasurementPointUpdate:
+  type: object
+  properties:
+    thickness_nm:
+      type: string
+    mse:
+      type: string
+    gof:
+      type: string
+    is_outlier:
+      type: boolean
+    outlier_note:
+      type: string
+ResultKind:
+  type: string
+  enum:
+  - apparent_removal_R
+  - delta_d
+  - apparent_epc
+  - rate
+  - paired_point_delta
+  - uniformity
+  - fit_quality
+  - other
+  description: '派生结果类型。
+
+    - `apparent_removal_R` 表观减薄 R = before - after
+
+    - `delta_d`            表观增厚 Δd = after - before
+
+    - `apparent_epc`       表观每循环减薄量（**非已证实稳态 ALE 速率**）
+
+    - `rate`               速率
+
+    - `paired_point_delta` 点级配对差
+
+    - `uniformity`         均匀性
+
+    - `fit_quality`        拟合质量
+
+    '
+  examples:
+  - apparent_removal_R
+PairingMethod:
+  type: string
+  enum:
+  - same_xy_coordinate
+  - row_index
+  - mean_difference
+  description: '配对方法。
+
+    `same_xy_coordinate` 为推荐做法（按数值 X、Y 精确一一连接）；
+
+    `row_index` 按 Excel 行号相减，**会引入错误**，仅用于兼容历史数据。
+
+    '
+  examples:
+  - same_xy_coordinate
+DerivedResult:
+  type: object
+  description: '派生分析结果。
+
+
+    **所有结论必须是派生对象，禁止手填。**
+
+    减薄量 R 由两次具体测量计算得出，任何结论都能回溯到源测量。
+
+    '
+  required:
+  - result_id
+  - result_code
+  - result_kind
+  - sample_id
+  - is_valid
+  - evidence_level
+  properties:
+    result_id:
+      type: integer
+      format: int64
+    result_code:
+      type: string
+      maxLength: 128
+      examples:
+      - RES-B05-S01-R
+    result_kind:
+      $ref: '#/ResultKind'
+    sample_id:
+      type: integer
+      format: int64
+    sample_code:
+      type:
+      - string
+      - 'null'
+    before_measurement_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    after_measurement_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    process_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    value_nm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(16,8)
+      description: 数值（单位见 value_unit）
+      examples:
+      - '2.34000000'
+    value_unit:
+      type:
+      - string
+      - 'null'
+      enum:
+      - nm
+      - A_per_cycle
+      - pct
+      - null
+    value_sd_nm:
+      type:
+      - string
+      - 'null'
+      x-db-type: decimal(16,8)
+      description: 空间 SD（**非独立重复误差**）
+    cycles_basis:
+      type:
+      - integer
+      - 'null'
+      description: 计算速率所用循环基数
+    pairing_method:
+      $ref: '#/PairingMethod'
+    paired_point_count:
+      type:
+      - integer
+      - 'null'
+    model_consistent:
+      type:
+      - boolean
+      - 'null'
+      description: '前后测量是否使用同一光学模型。
+
+        `false` 表示该结果是**跨模型相减**，需谨慎解释。
+
+        `null` 表示无法判定（未记录模型）。
+
+        '
+      examples:
+      - false
+    model_warning:
+      type:
+      - string
+      - 'null'
+      readOnly: true
+      description: 由服务端根据 model_consistent 自动生成的警告文字
+      examples:
+      - ⚠ 前后测量使用了不同光学模型，该差值为跨模型相减
+    is_valid:
+      type: boolean
+      description: '结果是否有效。
+
+        当源测量被取代时置 false，提示需重算。
+
+        '
+    evidence_level:
+      $ref: '#/EvidenceLevel'
+    computation_note:
+      type:
+      - string
+      - 'null'
+      description: 计算说明与限制
+    computed_at:
+      type:
+      - string
+      - 'null'
+      format: date-time
+    computed_by:
+      type:
+      - string
+      - 'null'
+      examples:
+      - import_script_v1
+    created_at:
+      type: string
+      format: date-time
+DerivedResultDetail:
+  allOf:
+  - $ref: '#/DerivedResult'
+  - type: object
+    properties:
+      before_measurement:
+        $ref: '#/MeasurementBrief'
+      after_measurement:
+        $ref: '#/MeasurementBrief'
+      sample:
+        $ref: '#/SampleBrief'
+      process:
+        $ref: '#/ProcessBrief'
+DerivedResultCreate:
+  type: object
+  required:
+  - result_code
+  - result_kind
+  - sample_id
+  properties:
+    result_code:
+      type: string
+      maxLength: 128
+    result_kind:
+      $ref: '#/ResultKind'
+    sample_id:
+      type: integer
+      format: int64
+    before_measurement_id:
+      type: integer
+      format: int64
+    after_measurement_id:
+      type: integer
+      format: int64
+    process_id:
+      type: integer
+      format: int64
+    value_nm:
+      type: string
+    value_unit:
+      type: string
+      enum:
+      - nm
+      - A_per_cycle
+      - pct
+    value_sd_nm:
+      type: string
+    cycles_basis:
+      type: integer
+    pairing_method:
+      $ref: '#/PairingMethod'
+    paired_point_count:
+      type: integer
+    evidence_level:
+      $ref: '#/EvidenceLevel'
+    computation_note:
+      type: string
+    computed_by:
+      type: string
+PairedPointDelta:
+  type: object
+  description: 单对配对点的差值。
+  required:
+  - point_no
+  properties:
+    point_no:
+      type: integer
+    x_mm:
+      type:
+      - string
+      - 'null'
+    y_mm:
+      type:
+      - string
+      - 'null'
+    before_thickness_nm:
+      type:
+      - string
+      - 'null'
+    after_thickness_nm:
+      type:
+      - string
+      - 'null'
+    delta_nm:
+      type:
+      - string
+      - 'null'
+      description: after - before
+    r_nm:
+      type:
+      - string
+      - 'null'
+      description: before - after
+    delta_mse:
+      type:
+      - string
+      - 'null'
+    delta_gof:
+      type:
+      - string
+      - 'null'
+PairingRequest:
+  additionalProperties: false
+  properties:
+    after_measurement_id:
+      exclusiveMinimum: 0
+      title: After Measurement Id
+      type: integer
+      x-db-column: false
+    before_measurement_id:
+      exclusiveMinimum: 0
+      title: Before Measurement Id
+      type: integer
+      x-db-column: false
+    confirm_pair:
+      title: Confirm Pair
+      type: boolean
+      x-db-column: false
+    include_points:
+      default: true
+      title: Include Points
+      type: boolean
+      x-db-column: false
+    pairing_method:
+      const: same_xy_coordinate
+      default: same_xy_coordinate
+      title: Pairing Method
+      type: string
+      x-db-column: false
+    selection:
+      $ref: '#/components/schemas/AnalysisSelection'
+      x-db-column: false
+  required:
+  - before_measurement_id
+  - after_measurement_id
+  - confirm_pair
+  title: PairRequest
+  type: object
+  x-python-strict: true
+  x-python-strip-whitespace: false
+  x-python-definition: "class PairingRequest(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', strict=True, str_strip_whitespace=False)\n\
+    \    before_measurement_id: Annotated[int, Field(strict=True, gt=0)]\n    after_measurement_id: Annotated[int, Field(strict=True,\
+    \ gt=0)]\n    pairing_method: Literal['same_xy_coordinate'] = 'same_xy_coordinate'\n    include_points: bool = True\n\
+    \    confirm_pair: bool\n    selection: AnalysisSelection = Field(default_factory=AnalysisSelection)"
+PairingResponse:
+  type: object
+  additionalProperties: false
+  properties:
+    pairing_method: &id005
+      type: string
+      enum:
+      - same_xy_coordinate
+      x-db-column: false
+    direction: &id006
+      type: string
+      enum:
+      - after - before
+      x-db-column: false
+    model_consistent: &id007
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+    paired_point_count: &id001
+      type: integer
+      minimum: 0
+      x-db-column: false
+    unmatched_before: *id001
+    unmatched_after: *id001
+    ineligible_before: *id001
+    ineligible_after: *id001
+    mean_delta_nm: &id002
+      type: string
+      pattern: ^-?\d+(?:\.\d+)?$
+      x-db-column: false
+    mean_before_nm: *id002
+    mean_after_nm: *id002
+    sd_delta_nm: &id008
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    observation: &id009
+      type: string
+      enum:
+      - increase
+      - decrease
+      - unchanged
+      x-db-column: false
+    interpretation: &id003
+      type: string
+      x-db-column: false
+    points: &id010
+      type: array
+      items:
+        $ref: '#/components/schemas/AnalysisPairPoint'
+      x-db-column: false
+    before_measurement_id:
+      type: integer
+    after_measurement_id:
+      type: integer
+    analysis_version: *id003
+    selection:
+      $ref: '#/components/schemas/AnalysisSelection'
+    result_sha256:
+      type: string
+      pattern: ^[a-f0-9]{64}$
+  required:
+  - pairing_method
+  - direction
+  - model_consistent
+  - paired_point_count
+  - unmatched_before
+  - unmatched_after
+  - ineligible_before
+  - ineligible_after
+  - mean_delta_nm
+  - mean_before_nm
+  - mean_after_nm
+  - sd_delta_nm
+  - observation
+  - interpretation
+  - before_measurement_id
+  - after_measurement_id
+  - analysis_version
+  - selection
+  - result_sha256
+FileRole:
+  type: string
+  enum:
+  - instrument_raw
+  - derived_summary
+  - point_derived
+  - analysis_output
+  - metadata
+  - xps_raw
+  description: '文件在数据链中的角色。
+
+    四批数据中这六种性质完全不同，混为一类会导致处理错误：
+
+    - `instrument_raw`   仪器原始导出（唯一原始证据）
+
+    - `derived_summary`  派生汇总（可重算的中间产物）
+
+    - `point_derived`    点级派生（已配对，带单元格溯源）
+
+    - `analysis_output`  分析产出（图、工程、报告）
+
+    - `metadata`         元数据/交接文档
+
+    - `xps_raw`          其他表征原始数据
+
+    '
+  examples:
+  - instrument_raw
+ParseStatus:
+  type: string
+  enum:
+  - pending
+  - parsed
+  - failed
+  - ignored
+SourceFile:
+  type: object
+  description: 历史/规划完整登记模型；当前只读 GET 使用 SourceFileRead / SourceFileReadDetail。新上传原件按 SHA 不可变保存，禁止改写。
+  required:
+  - file_id
+  - file_sha256
+  - file_name
+  - file_role
+  - is_readonly
+  - parse_status
+  properties:
+    file_id:
+      type: integer
+      format: int64
+    file_sha256:
+      type: string
+      pattern: ^[a-f0-9]{64}$
+      description: SHA-256，主溯源键
+      examples:
+      - 6cef851cc48976be4b45da6d31e24ce400447d0ddb12116bc540d93cf5182a67
+    file_name:
+      type: string
+      maxLength: 512
+      description: 文件名（可能含 n/k 编码，如 `1-n1.9198-k0.0005-ALE.xlsx`）
+      examples:
+      - 1-n1.9198-k0.0005-ALE.xlsx
+    rel_path:
+      type:
+      - string
+      - 'null'
+      maxLength: 1024
+    source_zip:
+      type:
+      - string
+      - 'null'
+      maxLength: 255
+    file_role:
+      $ref: '#/FileRole'
+    file_ext:
+      type:
+      - string
+      - 'null'
+      examples:
+      - .xlsx
+    size_bytes:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    mtime_epoch:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    batch_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    sample_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    is_readonly:
+      type: boolean
+      description: 原始文件只读，恒为 true
+      examples:
+      - true
+    is_duplicate_of:
+      type:
+      - integer
+      - 'null'
+      format: int64
+      description: '重复文件的原始版本 ID。
+
+        SRC-D 内嵌了 SRC-A / SRC-C 的副本，需标记避免重复计数。
+
+        '
+    parse_status:
+      $ref: '#/ParseStatus'
+    parse_note:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+SourceFileCreate:
+  type: object
+  required:
+  - file_sha256
+  - file_name
+  - file_role
+  properties:
+    file_sha256:
+      type: string
+      pattern: ^[a-f0-9]{64}$
+    file_name:
+      type: string
+      maxLength: 512
+    rel_path:
+      type: string
+    source_zip:
+      type: string
+    file_role:
+      $ref: '#/FileRole'
+    file_ext:
+      type: string
+    size_bytes:
+      type: integer
+      format: int64
+    mtime_epoch:
+      type: integer
+      format: int64
+    batch_id:
+      type: integer
+      format: int64
+    sample_id:
+      type: integer
+      format: int64
+    is_duplicate_of:
+      type: integer
+      format: int64
+    parse_note:
+      type: string
+Finding:
+  type: object
+  description: 研究结论台账。**强制区分实测观察与机理假设。**
+  required:
+  - finding_id
+  - finding_code
+  - statement
+  - evidence_level
+  - is_confirmed
+  properties:
+    finding_id:
+      type: integer
+      format: int64
+    finding_code:
+      type: string
+      maxLength: 32
+      examples:
+      - F01
+    statement:
+      type: string
+      examples:
+      - W01完整O3-HF-TMA x100 对应 1.1933-1.8067nm 表观减薄
+    evidence_level:
+      $ref: '#/EvidenceLevel'
+    support_sample_count:
+      type:
+      - integer
+      - 'null'
+      description: '支撑样品数。
+
+        使「这条结论只有一个样片支撑」成为可查询事实，
+
+        而非靠人记住。
+
+        '
+      examples:
+      - 4
+    is_confirmed:
+      type: boolean
+      examples:
+      - false
+    scope_note:
+      type:
+      - string
+      - 'null'
+      description: 适用边界与禁止外推说明
+      examples:
+      - 表观膜厚变化，非 SiN 本体真实刻蚀
+    created_by:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+FindingCreate:
+  type: object
+  required:
+  - finding_code
+  - statement
+  - evidence_level
+  properties:
+    finding_code:
+      type: string
+    statement:
+      type: string
+    evidence_level:
+      $ref: '#/EvidenceLevel'
+    support_sample_count:
+      type: integer
+    is_confirmed:
+      type: boolean
+      default: false
+    scope_note:
+      type: string
+FindingUpdate:
+  type: object
+  properties:
+    statement:
+      type: string
+    evidence_level:
+      $ref: '#/EvidenceLevel'
+    support_sample_count:
+      type: integer
+    is_confirmed:
+      type: boolean
+    scope_note:
+      type: string
+Issue:
+  type: object
+  description: '问题台账。对应交接文档 ISS-01 至 ISS-10。
+
+
+    `avoid` 字段（禁止误用条款）是这批数据最有价值的部分之一——
+
+    它是前人踩过的坑的固化，使其可被查询、可在录入时被引用提醒。
+
+    '
+  required:
+  - issue_id
+  - issue_code
+  - title
+  - severity
+  - status
+  properties:
+    issue_id:
+      type: integer
+      format: int64
+    issue_code:
+      type: string
+      maxLength: 32
+      examples:
+      - ISS-05
+    title:
+      type: string
+      maxLength: 255
+      examples:
+      - 异常前处理样品 W01-S09
+    severity:
+      $ref: '#/IssueSeverity'
+    status:
+      $ref: '#/IssueStatus'
+    observed:
+      type:
+      - string
+      - 'null'
+      description: 现象与证据
+    effect:
+      type:
+      - string
+      - 'null'
+      description: 对结论的影响
+    action:
+      type:
+      - string
+      - 'null'
+      description: 交接处理措施
+    avoid:
+      type:
+      - string
+      - 'null'
+      description: "禁止误用条款。\n例：「严禁纳入常规 HF-only 速率均值」\n    「不可将 O2 plasma 的 30sccm 误记为 O3 发生器供气流量」\n"
+      examples:
+      - 严禁纳入常规HF-only速率均值
+    opened_at:
+      type:
+      - string
+      - 'null'
+      format: date
+    closed_at:
+      type:
+      - string
+      - 'null'
+      format: date
+    owner_user_id:
+      type:
+      - integer
+      - 'null'
+      format: int64
+    linked_entity_count:
+      type:
+      - integer
+      - 'null'
+      readOnly: true
+      description: 关联实体数量（服务端聚合）
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+IssueDetail:
+  allOf:
+  - $ref: '#/Issue'
+  - type: object
+    properties:
+      links:
+        type: array
+        items:
+          $ref: '#/IssueLink'
+IssueCreate:
+  type: object
+  required:
+  - issue_code
+  - title
+  properties:
+    issue_code:
+      type: string
+      maxLength: 32
+    title:
+      type: string
+      maxLength: 255
+    severity:
+      $ref: '#/IssueSeverity'
+    status:
+      $ref: '#/IssueStatus'
+    observed:
+      type: string
+    effect:
+      type: string
+    action:
+      type: string
+    avoid:
+      type: string
+    opened_at:
+      type: string
+      format: date
+    owner_user_id:
+      type: integer
+      format: int64
+IssueUpdate:
+  type: object
+  properties:
+    title:
+      type: string
+    severity:
+      $ref: '#/IssueSeverity'
+    status:
+      $ref: '#/IssueStatus'
+    observed:
+      type: string
+    effect:
+      type: string
+    action:
+      type: string
+    avoid:
+      type: string
+    closed_at:
+      type: string
+      format: date
+    owner_user_id:
+      type: integer
+      format: int64
+IssueLink:
+  type: object
+  required:
+  - link_id
+  - issue_id
+  - entity_type
+  - entity_id
+  - relation
+  properties:
+    link_id:
+      type: integer
+      format: int64
+    issue_id:
+      type: integer
+      format: int64
+    entity_type:
+      $ref: '#/EntityType'
+    entity_id:
+      type: integer
+      format: int64
+    relation:
+      type: string
+      enum:
+      - related
+      - caused_by
+      - blocked_by
+      - evidence_for
+    note:
+      type:
+      - string
+      - 'null'
+    created_at:
+      type: string
+      format: date-time
+IssueLinkCreate:
+  type: object
+  required:
+  - entity_type
+  - entity_id
+  properties:
+    entity_type:
+      $ref: '#/EntityType'
+    entity_id:
+      type: integer
+      format: int64
+    relation:
+      type: string
+      enum:
+      - related
+      - caused_by
+      - blocked_by
+      - evidence_for
+      default: related
+    note:
+      type: string
+AnalysisSource:
+  additionalProperties: false
+  properties:
+    block_index:
+      default: 0
+      maximum: 15
+      minimum: 0
+      title: Block Index
+      type: integer
+      x-db-column: false
+    confirm_associations:
+      default: false
+      title: Confirm Associations
+      type: boolean
+      x-db-column: false
+    expected_row_version:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: Expected Row Version
+      x-db-column: false
+    id:
+      exclusiveMinimum: 0
+      title: Id
+      type: integer
+      x-db-column: false
+    kind:
+      enum:
+      - measurement
+      - import_item
+      title: Kind
+      type: string
+      x-db-column: false
+    optical_model_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: Optical Model Id
+      x-db-column: false
+    sample_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: Sample Id
+      x-db-column: false
+    stage:
+      anyOf:
+      - enum:
+        - initial
+        - after_o2_plasma
+        - after_o3_pre
+        - after_ale
+        - after_hf_only
+        - after_o3_only
+        - intermediate
+        - final
+        - other
+        type: string
+      - type: 'null'
+      default: null
+      title: Stage
+      x-db-column: false
+    stage_seq:
+      anyOf:
+      - maximum: 4294967295
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: Stage Seq
+      x-db-column: false
+  required:
+  - kind
+  - id
+  title: Source
+  type: object
+  x-python-strict: true
+  x-python-strip-whitespace: false
+  x-python-definition: "class AnalysisSource(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', strict=True, str_strip_whitespace=False)\n\
+    \    kind: Literal['measurement','import_item']\n    id: Annotated[int, Field(strict=True, gt=0)]\n    block_index: Annotated[int,\
+    \ Field(ge=0, le=15)] = 0\n    # Preview-only declarations; never persisted into measurements by analysis.\n    sample_id:\
+    \ Annotated[int, Field(strict=True, gt=0)] | None = None\n    stage: Literal['initial', 'after_o2_plasma', 'after_o3_pre',\
+    \ 'after_ale', 'after_hf_only', 'after_o3_only', 'intermediate', 'final', 'other'] | None = None\n    stage_seq: Annotated[int,\
+    \ Field(ge=0, le=4294967295)] | None = None\n    optical_model_id: Annotated[int, Field(strict=True, gt=0)] | None = None\n\
+    \    confirm_associations: bool = False\n    expected_row_version: Annotated[int, Field(strict=True, gt=0)] | None = None\n\
+    \    @model_validator(mode='after')\n    def formal_identity(self):\n        if self.kind == 'measurement' and (self.block_index\
+    \ or any(v is not None for v in (self.sample_id,self.stage,self.stage_seq,self.optical_model_id)) or self.confirm_associations):\n\
+    \            raise ValueError('Formal associations come only from stored measurements')\n        return self"
+AnalysisSelection:
+  additionalProperties: false
+  properties:
+    excluded_points:
+      items:
+        maxLength: 80
+        minLength: 1
+        type: string
+      maxItems: 1000
+      title: Excluded Points
+      type: array
+      x-db-column: false
+    include_outliers:
+      default: true
+      title: Include Outliers
+      type: boolean
+      x-db-column: false
+    reason:
+      default: ''
+      maxLength: 4000
+      title: Reason
+      type: string
+      x-db-column: false
+  title: Selection
+  type: object
+  x-python-strict: true
+  x-python-strip-whitespace: false
+  x-python-definition: "class AnalysisSelection(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', strict=True,\
+    \ str_strip_whitespace=False)\n    include_outliers: bool = True\n    excluded_points: list[Annotated[str, Field(min_length=1,max_length=80)]]\
+    \ = Field(default_factory=list,max_length=1000)\n    reason: Annotated[str, Field(max_length=4000)] = ''\n    @model_validator(mode='after')\n\
+    \    def reason_for_exclusion(self):\n        if (not self.include_outliers or self.excluded_points) and not self.reason.strip():\n\
+    \            raise ValueError('Exclusion requires an auditable reason')\n        if len(set(self.excluded_points)) !=\
+    \ len(self.excluded_points):\n            raise ValueError('Duplicate exclusions')\n        return self"
+AnalysisCalculate:
+  additionalProperties: false
+  properties:
+    after_index:
+      anyOf:
+      - maximum: 19
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: After Index
+      x-db-column: false
+    before_index:
+      anyOf:
+      - maximum: 19
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: Before Index
+      x-db-column: false
+    confirm_pair:
+      default: false
+      title: Confirm Pair
+      type: boolean
+      x-db-column: false
+    selection:
+      $ref: '#/components/schemas/AnalysisSelection'
+      x-db-column: false
+    sources:
+      items:
+        $ref: '#/components/schemas/AnalysisSource'
+      maxItems: 20
+      minItems: 1
+      title: Sources
+      type: array
+      x-db-column: false
+  required:
+  - sources
+  title: Calculate
+  type: object
+  x-python-strict: true
+  x-python-strip-whitespace: false
+  x-python-definition: "class AnalysisCalculate(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', strict=True,\
+    \ str_strip_whitespace=False)\n    sources: list[AnalysisSource] = Field(min_length=1,max_length=20)\n    selection: AnalysisSelection\
+    \ = Field(default_factory=AnalysisSelection)\n    before_index: Annotated[int, Field(ge=0,le=19)] | None = None\n    after_index:\
+    \ Annotated[int, Field(ge=0,le=19)] | None = None\n    confirm_pair: bool = False\n    @model_validator(mode='after')\n\
+    \    def source_identity(self):\n        keys=[(s.kind,s.id,s.block_index) for s in self.sources]\n        if len(set(keys))!=len(keys):raise\
+    \ ValueError('Duplicate sources')\n        if (self.before_index is None)!=(self.after_index is None):raise ValueError('Both\
+    \ pair indices required')\n        if self.before_index is not None and (not self.confirm_pair or self.before_index==self.after_index\
+    \ or max(self.before_index,self.after_index)>=len(self.sources)):\n            raise ValueError('Confirm distinct before/after\
+    \ sources')\n        return self"
+AnalysisSave:
+  additionalProperties: false
+  properties:
+    calculation:
+      $ref: '#/components/schemas/AnalysisCalculate'
+      x-db-column: false
+    label:
+      maxLength: 100
+      minLength: 1
+      title: Label
+      type: string
+      x-db-column: false
+  required:
+  - calculation
+  - label
+  title: SaveRequest
+  type: object
+  x-python-strict: true
+  x-python-strip-whitespace: false
+  x-python-definition: "class AnalysisSave(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', strict=True, str_strip_whitespace=False)\n\
+    \    calculation: AnalysisCalculate\n    label: Annotated[str, Field(min_length=1,max_length=100)]"
+FlowNode:
+  additionalProperties: false
+  properties:
+    children:
+      items:
+        $ref: '#/components/schemas/FlowNode'
+      maxItems: 500
+      title: Children
+      type: array
+      x-db-column: false
+    id:
+      maxLength: 80
+      minLength: 1
+      title: Id
+      type: string
+      x-db-column: false
+    kind:
+      enum:
+      - group
+      - step
+      title: Kind
+      type: string
+      x-db-column: false
+    name:
+      anyOf:
+      - maxLength: 128
+        minLength: 1
+        type: string
+      - type: 'null'
+      default: null
+      title: Name
+      x-db-column: false
+    repeat:
+      anyOf:
+      - maximum: 1000000
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: Repeat
+      x-db-column: false
+    step_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - maxLength: 80
+        minLength: 1
+        type: string
+      - type: 'null'
+      default: null
+      title: Step Id
+      x-db-column: false
+  required:
+  - kind
+  - id
+  title: FlowNode
+  type: object
+  x-python-strict: false
+  x-python-strip-whitespace: true
+  x-python-definition: "class FlowNode(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', strict=False, str_strip_whitespace=True)\n\
+    \    kind: Literal['group', 'step']\n    id: Annotated[str, Field(min_length=1, max_length=80)]\n    name: Annotated[str,\
+    \ Field(min_length=1, max_length=128)] | None = None\n    repeat: Annotated[int, Field(strict=True, ge=0, le=1000000)]\
+    \ | None = None\n    step_id: Annotated[int, Field(strict=True, gt=0)] | Annotated[str, Field(min_length=1, max_length=80)]\
+    \ | None = None\n    children: Annotated[list['FlowNode'], Field(max_length=500)] = Field(default_factory=list)\n\n  \
+    \  @model_validator(mode='after')\n    def shape(self):\n        if self.kind == 'step' and (self.step_id is None or self.children\
+    \ or self.name is not None or self.repeat is not None):\n            raise ValueError('A step node contains only its ID\
+    \ and step reference')\n        if self.kind == 'group' and (self.step_id is not None or not self.name):\n           \
+    \ raise ValueError('A group needs a name and cannot contain a step reference')\n        return self"
+ProcessFlow:
+  additionalProperties: false
+  properties:
+    children:
+      items:
+        $ref: '#/components/schemas/FlowNode'
+      maxItems: 500
+      title: Children
+      type: array
+      x-db-column: false
+    total_cycles:
+      anyOf:
+      - maximum: 1000000
+        minimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: Total Cycles
+      x-db-column: false
+    version:
+      const: 1
+      default: 1
+      title: Version
+      type: integer
+      x-db-column: false
+  title: ProcessFlow
+  type: object
+  x-python-strict: false
+  x-python-strip-whitespace: true
+  x-python-definition: "class ProcessFlow(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', strict=False, str_strip_whitespace=True)\n\
+    \    version: Literal[1] = 1\n    total_cycles: Annotated[int, Field(strict=True, ge=0, le=1000000)] | None = None\n \
+    \   children: Annotated[list[FlowNode], Field(max_length=500)] = Field(default_factory=list)\n\n    @model_validator(mode='after')\n\
+    \    def bounded_tree(self):\n        ids, refs = set(), set()\n        count = groups = 0\n        def visit(nodes, depth):\n\
+    \            nonlocal count, groups\n            if depth > 5: raise ValueError('At most four nested groups are supported')\n\
+    \            for node in nodes:\n                count += 1\n                if count > 500: raise ValueError('At most\
+    \ 500 flow nodes are supported')\n                if node.id in ids: raise ValueError('Flow node IDs must be unique')\n\
+    \                ids.add(node.id)\n                if node.kind == 'step':\n                    if node.step_id in refs:\
+    \ raise ValueError('Each step may appear only once; use an explicit group repeat')\n                    refs.add(node.step_id)\n\
+    \                else:\n                    groups += 1\n                    if groups > 32: raise ValueError('At most\
+    \ 32 groups are supported')\n                    visit(node.children, depth + 1)\n        visit(self.children, 1)\n  \
+    \      return self"
+GridStep:
+  additionalProperties: false
+  properties:
+    key:
+      maxLength: 80
+      minLength: 1
+      title: Key
+      type: string
+      x-db-column: false
+    parameter_snapshot:
+      $ref: '#/components/schemas/ParameterSnapshot'
+      x-db-column: false
+    plan_step_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: Plan Step Id
+      x-db-column: false
+    step_id:
+      anyOf:
+      - exclusiveMinimum: 0
+        type: integer
+      - type: 'null'
+      default: null
+      title: Step Id
+      x-db-column: false
+    step_kind:
+      maxLength: 128
+      minLength: 1
+      title: Step Kind
+      type: string
+      x-db-column: false
+    step_name:
+      anyOf:
+      - maxLength: 128
+        type: string
+      - type: 'null'
+      default: null
+      title: Step Name
+      x-db-column: false
+  required:
+  - key
+  - step_kind
+  - parameter_snapshot
+  title: GridStep
+  type: object
+  x-python-strict: false
+  x-python-strip-whitespace: false
+  x-python-definition: "class GridStep(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', strict=False, str_strip_whitespace=False)\n\
+    \    key: Annotated[str, Field(min_length=1,max_length=80)]\n    step_id: Annotated[int, Field(strict=True, gt=0)] | None\
+    \ = None\n    step_kind: Annotated[str, Field(min_length=1, max_length=128)]\n    step_name: Annotated[str, Field(max_length=128)]\
+    \ | None = None\n    parameter_snapshot: ParameterSnapshot\n    plan_step_id: Annotated[int, Field(strict=True, gt=0)]\
+    \ | None = None"
+ProcessGridSave:
+  additionalProperties: false
+  properties:
+    expected_row_version:
+      exclusiveMinimum: 0
+      title: Expected Row Version
+      type: integer
+      x-db-column: false
+    process_flow:
+      $ref: '#/components/schemas/ProcessFlow'
+      x-db-column: false
+    steps:
+      items:
+        $ref: '#/components/schemas/GridStep'
+      maxItems: 500
+      title: Steps
+      type: array
+      x-db-column: false
+  required:
+  - expected_row_version
+  - steps
+  - process_flow
+  title: ProcessGridSave
+  type: object
+  x-python-strict: false
+  x-python-strip-whitespace: false
+  x-python-definition: "class ProcessGridSave(ApiBaseModel):\n    model_config = ConfigDict(extra='forbid', strict=False,\
+    \ str_strip_whitespace=False)\n    expected_row_version: Annotated[int, Field(strict=True, gt=0)]\n    steps: Annotated[list[GridStep],\
+    \ Field(max_length=500)]\n    process_flow: ProcessFlow\n\n    @model_validator(mode='after')\n    def bounded_grid_payload(self):\n\
+    \        if len(self.model_dump_json().encode('utf-8')) > 1048576:\n            raise ValueError('A process grid supports\
+    \ at most 1 MiB')\n        return self"
+AnalysisMetric:
+  type: object
+  additionalProperties: false
+  properties:
+    count: *id001
+    excluded_nonfinite_or_missing: *id001
+    mean: *id002
+    min: *id002
+    max: *id002
+    sd_sample:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    sd_population: *id002
+  required:
+  - count
+  - excluded_nonfinite_or_missing
+AnalysisStatistics:
+  type: object
+  additionalProperties: false
+  properties:
+    point_count: *id001
+    includes_outliers: &id004
+      type: boolean
+      x-db-column: false
+    sd_convention:
+      type: object
+      additionalProperties: false
+      properties:
+        sample: *id003
+        population: *id003
+      required:
+      - sample
+      - population
+      x-db-column: false
+    decimal_precision:
+      type: integer
+      enum:
+      - 50
+      x-db-column: false
+    rounding:
+      type: string
+      enum:
+      - ROUND_HALF_EVEN
+      x-db-column: false
+    db_write_policy: *id003
+    thickness_nm:
+      $ref: '#/components/schemas/AnalysisMetric'
+      x-db-column: false
+    mse:
+      $ref: '#/components/schemas/AnalysisMetric'
+      x-db-column: false
+    gof:
+      $ref: '#/components/schemas/AnalysisMetric'
+      x-db-column: false
+  required:
+  - point_count
+  - includes_outliers
+  - sd_convention
+  - decimal_precision
+  - rounding
+  - db_write_policy
+  - thickness_nm
+  - mse
+  - gof
+AnalysisPoint:
+  type: object
+  additionalProperties: false
+  properties:
+    x_mm:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    y_mm:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    thickness_nm:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    mse:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    gof:
+      anyOf:
+      - *id002
+      - type: 'null'
+      x-db-column: false
+    point_no:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    source_row:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    source_file_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    point_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    outlier_note:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    source_sheet:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    source_cell:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    key: *id003
+    included: *id004
+    is_outlier: *id004
+  required:
+  - x_mm
+  - y_mm
+  - thickness_nm
+  - mse
+  - gof
+  - point_no
+  - source_row
+  - source_file_id
+  - point_id
+  - outlier_note
+  - source_sheet
+  - source_cell
+  - key
+  - included
+  - is_outlier
+AnalysisSourceMetadata:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum:
+      - measurement
+      - import_item
+      x-db-column: false
+    id:
+      type: integer
+      exclusiveMinimum: 0
+      x-db-column: false
+    block_index: *id001
+    row_version:
+      type: integer
+      x-db-column: false
+    label: *id003
+    sample_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    stage_seq:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    optical_model_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    cumulative_cycles:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    process_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    source_file_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    import_item_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    stage:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    parser:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    parser_version:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    sha256:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    quality_flag:
+      anyOf:
+      - *id003
+      - type: 'null'
+      x-db-column: false
+    is_current: *id004
+    recorded_conditions:
+      anyOf:
+      - $ref: '#/components/schemas/AnalysisRecordedConditions'
+      - type: 'null'
+      x-db-column: false
+    associations_source:
+      type: string
+      enum:
+      - user_confirmed_preview
+      - unknown
+      x-db-column: false
+    locator:
+      x-db-column: false
+    formal_measurements_written:
+      type: boolean
+      enum:
+      - false
+      x-db-column: false
+    model_parameter_columns:
+      type: array
+      items: {}
+      x-db-column: false
+    units:
+      type: object
+      additionalProperties: false
+      properties:
+        thickness_nm: *id003
+        x_mm: *id003
+        y_mm: *id003
+        mse: *id003
+        gof: *id003
+      required:
+      - thickness_nm
+      - x_mm
+      - y_mm
+      - mse
+      - gof
+      x-db-column: false
+    points_sha256:
+      type: string
+      x-db-column: false
+      pattern: ^[a-f0-9]{64}$
+    optical_model:
+      anyOf:
+      - type: object
+        additionalProperties: true
+        description: Visible optical_models fields except created_at and updated_at; used in canonical dependency fingerprint.
+      - type: 'null'
+      x-db-column: false
+    sample_dependency:
+      type: object
+      additionalProperties: false
+      properties:
+        sample_id:
+          type: integer
+        batch_id:
+          type: integer
+      required:
+      - sample_id
+      - batch_id
+      description: Only present when model applicable_batch_id requires sample batch validation.
+      x-db-column: false
+  required:
+  - kind
+  - id
+  - block_index
+  - row_version
+  - label
+  - sample_id
+  - stage
+  - stage_seq
+  - optical_model_id
+  - cumulative_cycles
+  - parser
+  - parser_version
+  - model_parameter_columns
+  - units
+  - points_sha256
+  - optical_model
+AnalysisSeries:
+  type: object
+  additionalProperties: false
+  properties:
+    source:
+      $ref: '#/components/schemas/AnalysisSourceMetadata'
+      x-db-column: false
+    points:
+      type: array
+      items:
+        $ref: '#/components/schemas/AnalysisPoint'
+      x-db-column: false
+    statistics:
+      $ref: '#/components/schemas/AnalysisStatistics'
+      x-db-column: false
+    raw_count: *id001
+    included_count: *id001
+    excluded_count: *id001
+    mapping:
+      type: object
+      additionalProperties: false
+      properties:
+        available: *id004
+        actual_xy_point_count: *id001
+        interpolation_available:
+          type: boolean
+          enum:
+          - false
+        note: *id003
+      required:
+      - available
+      - actual_xy_point_count
+      - interpolation_available
+      - note
+      x-db-column: false
+    warnings:
+      type: array
+      items: *id003
+      x-db-column: false
+  required:
+  - source
+  - points
+  - statistics
+  - raw_count
+  - included_count
+  - excluded_count
+  - mapping
+  - warnings
+AnalysisPairPoint:
+  type: object
+  additionalProperties: false
+  properties:
+    x_mm: *id002
+    y_mm: *id002
+    before_nm: *id002
+    after_nm: *id002
+    delta_nm: *id002
+    thickness_nm: *id002
+    mse:
+      type: 'null'
+      x-db-column: false
+    gof:
+      type: 'null'
+      x-db-column: false
+    before_key: *id003
+    after_key: *id003
+  required:
+  - x_mm
+  - y_mm
+  - before_nm
+  - after_nm
+  - delta_nm
+  - thickness_nm
+  - mse
+  - gof
+  - before_key
+  - after_key
+AnalysisPair:
+  type: object
+  additionalProperties: false
+  properties:
+    pairing_method: *id005
+    direction: *id006
+    model_consistent: *id007
+    paired_point_count: *id001
+    unmatched_before: *id001
+    unmatched_after: *id001
+    ineligible_before: *id001
+    ineligible_after: *id001
+    mean_delta_nm: *id002
+    mean_before_nm: *id002
+    mean_after_nm: *id002
+    sd_delta_nm: *id008
+    observation: *id009
+    interpretation: *id003
+    points: *id010
+  required:
+  - pairing_method
+  - direction
+  - model_consistent
+  - paired_point_count
+  - unmatched_before
+  - unmatched_after
+  - ineligible_before
+  - ineligible_after
+  - mean_delta_nm
+  - mean_before_nm
+  - mean_after_nm
+  - sd_delta_nm
+  - observation
+  - interpretation
+  - points
+AnalysisResult:
+  type: object
+  additionalProperties: false
+  properties:
+    analysis_version: *id003
+    decimal_precision:
+      type: integer
+      enum:
+      - 50
+      x-db-column: false
+    rounding:
+      type: string
+      enum:
+      - ROUND_HALF_EVEN
+      x-db-column: false
+    request:
+      $ref: '#/components/schemas/AnalysisCalculate'
+      x-db-column: false
+    series:
+      type: array
+      items:
+        $ref: '#/components/schemas/AnalysisSeries'
+      x-db-column: false
+    pair:
+      anyOf:
+      - $ref: '#/components/schemas/AnalysisPair'
+      - type: 'null'
+      x-db-column: false
+    persisted:
+      type: boolean
+      enum:
+      - false
+      x-db-column: false
+    limits:
+      type: object
+      additionalProperties: false
+      properties:
+        max_sources:
+          type: integer
+          enum:
+          - 20
+        max_points:
+          type: integer
+          enum:
+          - 20000
+      required:
+      - max_sources
+      - max_points
+      x-db-column: false
+    scientific_sources_modified:
+      type: boolean
+      enum:
+      - false
+      x-db-column: false
+    result_sha256:
+      type: string
+      pattern: ^[a-f0-9]{64}$
+      x-db-column: false
+  required:
+  - analysis_version
+  - decimal_precision
+  - rounding
+  - request
+  - series
+  - pair
+  - persisted
+  - limits
+  - scientific_sources_modified
+  - result_sha256
+AnalysisSaveResult:
+  type: object
+  additionalProperties: false
+  properties:
+    result_id:
+      type: integer
+      x-db-column: false
+    persisted:
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+    result_sha256: *id003
+    scientific_sources_modified:
+      type: boolean
+      enum:
+      - false
+      x-db-column: false
+  required:
+  - result_id
+  - persisted
+  - result_sha256
+  - scientific_sources_modified
+AnalysisSavedRecord:
+  type: object
+  additionalProperties: false
+  properties:
+    label: *id003
+    request:
+      $ref: '#/components/schemas/AnalysisCalculate'
+      x-db-column: false
+    result_sha256: *id003
+    analysis_version: *id003
+    sources:
+      type: array
+      items:
+        $ref: '#/components/schemas/AnalysisSourceMetadata'
+      x-db-column: false
+    statistics:
+      type: array
+      items:
+        $ref: '#/components/schemas/AnalysisStatistics'
+      x-db-column: false
+    pair:
+      anyOf:
+      - type: object
+        additionalProperties: false
+        properties:
+          pairing_method: *id005
+          direction: *id006
+          model_consistent: *id007
+          paired_point_count: *id001
+          unmatched_before: *id001
+          unmatched_after: *id001
+          ineligible_before: *id001
+          ineligible_after: *id001
+          mean_delta_nm: *id002
+          mean_before_nm: *id002
+          mean_after_nm: *id002
+          sd_delta_nm: *id008
+          observation: *id009
+          interpretation: *id003
+        required:
+        - pairing_method
+        - direction
+        - model_consistent
+        - paired_point_count
+        - unmatched_before
+        - unmatched_after
+        - ineligible_before
+        - ineligible_after
+        - mean_delta_nm
+        - mean_before_nm
+        - mean_after_nm
+        - sd_delta_nm
+        - observation
+        - interpretation
+      - type: object
+        additionalProperties: false
+        properties: {}
+        required: []
+      x-db-column: false
+  required:
+  - label
+  - request
+  - result_sha256
+  - analysis_version
+  - sources
+  - statistics
+  - pair
+AnalysisSavedResult:
+  type: object
+  additionalProperties: false
+  properties:
+    result_id:
+      type: integer
+      x-db-column: false
+    is_valid: *id004
+    computed_at:
+      type: string
+      format: date-time
+      x-db-column: false
+    record:
+      $ref: '#/components/schemas/AnalysisSavedRecord'
+      x-db-column: false
+    scientific_sources_modified:
+      type: boolean
+      enum:
+      - false
+      x-db-column: false
+    invalid_reasons:
+      type: array
+      items:
+        type: string
+        enum:
+        - source_or_result_changed
+        - measurement_not_current_or_excluded
+        - source_unavailable_or_changed
+        - record_invalidated
+      x-db-column: false
+    recomputed_result_sha256:
+      anyOf:
+      - type: string
+        pattern: ^[a-f0-9]{64}$
+      - type: 'null'
+      x-db-column: false
+  required:
+  - result_id
+  - is_valid
+  - computed_at
+  - record
+  - scientific_sources_modified
+  - invalid_reasons
+  - recomputed_result_sha256
+AnalysisReadonlyToolMetadata:
+  type: object
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      enum:
+      - scientific_analysis
+      x-db-column: false
+    readonly:
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+    external_raw_data:
+      type: boolean
+      enum:
+      - false
+      x-db-column: false
+    function:
+      type: string
+      enum:
+      - app.scientificanalysis.calculate
+      x-db-column: false
+    request_schema:
+      type: object
+      additionalProperties: true
+      x-db-column: false
+    response_projection:
+      type: array
+      items: *id003
+      x-db-column: false
+    requires_authenticated_scope:
+      type: boolean
+      enum:
+      - true
+      x-db-column: false
+    live_ai_registered:
+      type: boolean
+      enum:
+      - false
+      x-db-column: false
+  required:
+  - name
+  - readonly
+  - external_raw_data
+  - function
+  - request_schema
+  - response_projection
+  - requires_authenticated_scope
+  - live_ai_registered
+AnalysisRecordedConditions:
+  type: object
+  additionalProperties: false
+  properties:
+    process_id:
+      type: integer
+      x-db-column: false
+    row_version:
+      type: integer
+      x-db-column: false
+    process_code:
+      type: string
+      x-db-column: false
+    r1_temp_c:
+      anyOf:
+      - type: string
+        pattern: ^-?\d+(?:\.\d+)?$
+      - type: 'null'
+      x-db-column: false
+    r2_temp_c:
+      anyOf:
+      - type: string
+        pattern: ^-?\d+(?:\.\d+)?$
+      - type: 'null'
+      x-db-column: false
+    o3_pre_duration_s:
+      anyOf:
+      - type: string
+        pattern: ^-?\d+(?:\.\d+)?$
+      - type: 'null'
+      x-db-column: false
+    full_ale_cycles:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    hf_tma_repeats:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    o3_pre_cycles:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+    recorded_total_cycles:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      x-db-column: false
+  required:
+  - process_id
+  - process_code
+  - row_version
+  - r1_temp_c
+  - r2_temp_c
+  - full_ale_cycles
+  - hf_tma_repeats
+  - o3_pre_cycles
+  - o3_pre_duration_s
+  - recorded_total_cycles

@@ -1,0 +1,877 @@
+ImportJobStatus:
+  type: string
+  enum: &id005
+  - draft
+  - completed
+ImportItemStatus:
+  type: string
+  enum: &id006
+  - pending
+  - imported
+  - original_only
+  - skipped
+ImportPreviewRequest:
+  type: object
+  properties:
+    files[]:
+      type: array
+      items:
+        type: string
+        format: binary
+      minItems: 1
+      maxItems: 20
+  required:
+  - files[]
+  additionalProperties: false
+  description: multipart files[]；1–20 个文件；每个 <=20 MiB，总计 <=100 MiB；不接收其他字段。
+ImportChoice:
+  type: object
+  properties:
+    item_id: &id001
+      type: integer
+      exclusiveMinimum: 0
+    action:
+      type: string
+      enum:
+      - import
+      - original_only
+      - skip
+    sample_id:
+      anyOf:
+      - *id001
+      - type: 'null'
+    process_id:
+      anyOf:
+      - *id001
+      - type: 'null'
+    optical_model_id:
+      anyOf:
+      - *id001
+      - type: 'null'
+    measured_at:
+      type: [string, 'null']
+      format: date-time
+      description: 用户有依据填写的实际测量时间；未知留空，不取上传时间。
+    pair_item_id:
+      type: integer
+      minimum: 1
+      description: 本次提交中明确选择的同样品单块初始测量文件项；与 pair_measurement_id 互斥。
+    pair_measurement_id:
+      anyOf:
+      - *id001
+      - type: 'null'
+    stage:
+      anyOf:
+      - $ref: ../openapi.yaml#/components/schemas/MeasurementStage
+      - type: 'null'
+    stage_seq:
+      anyOf:
+      - type: integer
+        minimum: 0
+        maximum: 4294967295
+      - type: 'null'
+    measurement_code:
+      anyOf:
+      - type: string
+        minLength: 1
+        maxLength: 80
+      - type: 'null'
+    confirm_units:
+      type: boolean
+      default: false
+    confirm_associations:
+      type: boolean
+      default: false
+    confirm_duplicate:
+      type: boolean
+      default: false
+    duplicate_reason:
+      anyOf:
+      - type: string
+        minLength: 1
+        maxLength: 4000
+      - type: 'null'
+    notes:
+      anyOf:
+      - type: string
+        maxLength: 10000
+      - type: 'null'
+  required:
+  - item_id
+  - action
+  additionalProperties: false
+  x-python-strip-whitespace: true
+  description: import 必须显式选择 sample/stage（stage_seq 留空由系统在样品锁下分配） 并确认单位与关联；process 必须绑定到 sample。重复内容必须 confirm_duplicate=true 且提供 duplicate_reason；不自动 supersede。配对基线必须同样品且 current，initial 不可指定基线；模型不一致只给 warning。original_only 可不关联样品；有关联时也必须确认。skip 不建科学记录。
+ImportConfirmation:
+  type: object
+  properties:
+    expected_row_version: *id001
+    items:
+      type: array
+      items:
+        $ref: '#/ImportChoice'
+      minItems: 1
+      maxItems: 20
+  required:
+  - expected_row_version
+  - items
+  additionalProperties: false
+  x-unique-item-key: item_id
+  description: item_id 不得重复；按选中项原子确认；未选项 pending；相同规范化请求含版本号重放已保存结果，不同旧版本返回409。
+ParserIssue:
+  type: object
+  properties:
+    code: &id002
+      type: string
+    message: *id002
+    locator:
+      anyOf:
+      - &id003
+        type: object
+        additionalProperties: true
+      - type: 'null'
+    field:
+      anyOf:
+      - *id002
+      - type: 'null'
+  required:
+  - code
+  - message
+  - locator
+  - field
+ParserRawValue:
+  type: object
+  properties:
+    value: {}
+    cell:
+      anyOf:
+      - *id002
+      - type: 'null'
+    data_type: *id002
+    formula:
+      type: string
+      description: 原始公式文本（含前导等号）；不执行求值。
+    formula_attributes:
+      type: object
+      additionalProperties:
+        type: string
+      description: 原始 OOXML 公式属性。
+    cached_value_lexeme:
+      anyOf:
+      - type: string
+      - type: 'null'
+      description: 原始公式缓存词法值；不转为数值，不作为可信观测。
+    cached_type:
+      type: string
+      description: 原始 OOXML 缓存类型；缺省为 n。
+    cache_present:
+      type: boolean
+      description: 原始 v 元素是否存在；区分缺失缓存与空缓存。
+  required:
+  - value
+  - cell
+  - data_type
+ParserPoint:
+  type: object
+  properties:
+    x_mm:
+      anyOf:
+      - type: string
+      - type: 'null'
+    y_mm:
+      anyOf:
+      - type: string
+      - type: 'null'
+    intensity:
+      anyOf:
+      - type: string
+      - type: 'null'
+    height_mm:
+      anyOf:
+      - type: string
+      - type: 'null'
+    mse:
+      anyOf:
+      - type: string
+      - type: 'null'
+    gof:
+      anyOf:
+      - type: string
+      - type: 'null'
+    thickness_nm:
+      anyOf:
+      - type: string
+      - type: 'null'
+    aoi_deg:
+      anyOf:
+      - type: string
+      - type: 'null'
+    lbh:
+      anyOf:
+      - type: string
+      - type: 'null'
+    fit_time_ms:
+      anyOf:
+      - type: string
+      - type: 'null'
+    point_no:
+      anyOf:
+      - type: integer
+      - type: 'null'
+    fit_iter:
+      anyOf:
+      - type: integer
+      - type: 'null'
+    dispersion_params:
+      type: object
+      additionalProperties:
+        anyOf:
+        - *id002
+        - type: 'null'
+    source_sheet: *id002
+    source_row:
+      type: integer
+    source_cell:
+      anyOf:
+      - *id002
+      - type: 'null'
+    is_outlier: &id004
+      type: boolean
+    outlier_note:
+      anyOf:
+      - *id002
+      - type: 'null'
+    raw_values:
+      type: array
+      items:
+        $ref: '#/ParserRawValue'
+    locator: *id003
+  required:
+  - x_mm
+  - y_mm
+  - intensity
+  - height_mm
+  - mse
+  - gof
+  - thickness_nm
+  - aoi_deg
+  - lbh
+  - fit_time_ms
+  - point_no
+  - fit_iter
+  - dispersion_params
+  - source_sheet
+  - source_row
+  - source_cell
+  - is_outlier
+  - outlier_note
+  - raw_values
+  - locator
+  description: 预览数值为十进制字符串或 null，保留原始词法值；不以 DB scale 舍入。
+ParserFieldStatistics:
+  type: object
+  properties:
+    count:
+      type: integer
+    excluded_nonfinite_or_missing:
+      type: integer
+    mean: *id002
+    min: *id002
+    max: *id002
+    sd_sample:
+      anyOf:
+      - *id002
+      - type: 'null'
+    sd_population: *id002
+  required:
+  - count
+  - excluded_nonfinite_or_missing
+ParserStatistics:
+  type: object
+  properties:
+    point_count:
+      type: integer
+    includes_outliers: *id004
+    sd_convention:
+      type: object
+      properties:
+        sample: *id002
+        population: *id002
+      required:
+      - sample
+      - population
+    decimal_precision:
+      type: integer
+    rounding: *id002
+    db_write_policy: *id002
+    thickness_nm:
+      $ref: '#/ParserFieldStatistics'
+    mse:
+      $ref: '#/ParserFieldStatistics'
+    gof:
+      $ref: '#/ParserFieldStatistics'
+  required:
+  - point_count
+  - includes_outliers
+  - sd_convention
+  - decimal_precision
+  - rounding
+  - db_write_policy
+  - thickness_nm
+  - mse
+  - gof
+ParserBlock:
+  type: object
+  properties:
+    metadata: *id003
+    points:
+      type: array
+      items:
+        $ref: '#/ParserPoint'
+    statistics:
+      $ref: '#/ParserStatistics'
+    warnings:
+      type: array
+      items:
+        $ref: '#/ParserIssue'
+    blocking_issues:
+      type: array
+      items:
+        $ref: '#/ParserIssue'
+    locator: *id003
+  required:
+  - metadata
+  - points
+  - statistics
+  - warnings
+  - blocking_issues
+  - locator
+  description: metadata 保留 headers/units/preamble/instrument_summary/optical_model；locator 保留 sheet/header_row/end_row。
+ImportParseResult:
+  type: object
+  properties:
+    type:
+      type: string
+      enum:
+      - unsupported
+      - eoptics
+      - xps_chart_configuration
+    parser: *id002
+    version: *id002
+    status:
+      type: string
+      enum:
+      - original_only
+      - rejected
+      - needs_confirmation
+      - parsed
+    blocks:
+      type: array
+      items:
+        $ref: '#/ParserBlock'
+    warnings:
+      type: array
+      items:
+        $ref: '#/ParserIssue'
+    blocking_issues:
+      type: array
+      items:
+        $ref: '#/ParserIssue'
+    filename_hints:
+      type: object
+      properties:
+        source: *id002
+        requires_confirmation: *id004
+        n:
+          anyOf:
+          - *id002
+          - type: 'null'
+        k:
+          anyOf:
+          - *id002
+          - type: 'null'
+      required:
+      - source
+      - requires_confirmation
+      - n
+      - k
+    source:
+      type: object
+      properties:
+        filename: *id002
+        sha256: *id002
+        size_bytes:
+          type: integer
+      required:
+      - filename
+      - sha256
+      - size_bytes
+    preview_metadata: *id003
+  required:
+  - type
+  - parser
+  - version
+  - status
+  - blocks
+  - warnings
+  - blocking_issues
+  - filename_hints
+  - source
+ImportSuggestions:
+  type: object
+  properties:
+    requires_manual_selection: *id004
+    association_is_fact: *id004
+    warnings:
+      type: array
+      items: *id002
+    samples:
+      type: array
+      items:
+        type: object
+        properties:
+          sample_id: *id001
+          sample_code: *id002
+          display_label:
+            anyOf:
+            - *id002
+            - type: 'null'
+          batch_id: *id001
+          batch_code: *id002
+          batch_hint_match: *id004
+          processes:
+            type: array
+            items:
+              type: object
+              properties:
+                process_id: *id001
+                process_code: *id002
+              required:
+              - process_id
+              - process_code
+          baseline_measurements:
+            type: array
+            items:
+              type: object
+              properties:
+                measurement_id: *id001
+                measurement_code: *id002
+                stage:
+                  $ref: ../openapi.yaml#/components/schemas/MeasurementStage
+                stage_seq:
+                  anyOf:
+                  - type: integer
+                  - type: 'null'
+                optical_model_id:
+                  anyOf:
+                  - *id001
+                  - type: 'null'
+              required:
+              - measurement_id
+              - measurement_code
+              - stage
+              - stage_seq
+              - optical_model_id
+        required:
+        - sample_id
+        - sample_code
+        - display_label
+        - batch_id
+        - batch_code
+        - batch_hint_match
+        - processes
+        - baseline_measurements
+    optical_models:
+      type: array
+      items:
+        $ref: ../openapi.yaml#/components/schemas/OpticalModel
+  required:
+  - requires_manual_selection
+  - association_is_fact
+  - warnings
+  - samples
+  - optical_models
+  description: 始终手动选关联；候选仅限上传者自己的样品（含 admin），任务始终个人可见。
+ImportItemResult:
+  type: object
+  properties:
+    item_id: *id001
+    action:
+      type: string
+      enum:
+      - import
+      - original_only
+      - skip
+    measurement_ids:
+      type: array
+      items: *id001
+    warnings:
+      type: array
+      items: *id002
+    source_file_id: *id001
+  required:
+  - item_id
+  - action
+  - measurement_ids
+  - warnings
+ImportJob:
+  type: object
+  properties:
+    job_id:
+      type: integer
+      readOnly: true
+      x-db-column: import_jobs.job_id
+    owner_user_id:
+      type: integer
+      readOnly: true
+      x-db-column: import_jobs.owner_user_id
+    status:
+      type: string
+      readOnly: true
+      x-db-column: import_jobs.status
+      enum: *id005
+    row_version:
+      type: integer
+      readOnly: true
+      x-db-column: import_jobs.row_version
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+      x-db-column: import_jobs.created_at
+  required:
+  - job_id
+  - owner_user_id
+  - status
+  - row_version
+  - created_at
+  x-db-table: import_jobs
+ImportItem:
+  type: object
+  properties:
+    item_id:
+      type: integer
+      readOnly: true
+      x-db-column: import_items.item_id
+    job_id:
+      type: integer
+      readOnly: true
+      x-db-column: import_items.job_id
+    filename:
+      type: string
+      readOnly: true
+      x-db-column: import_items.filename
+    sha256:
+      type: string
+      readOnly: true
+      x-db-column: import_items.sha256
+    parse_result:
+      readOnly: true
+      x-db-column: import_items.parse_result
+      $ref: '#/ImportParseResult'
+    confirmation:
+      anyOf:
+      - $ref: '#/ImportChoice'
+      - type: 'null'
+      readOnly: true
+      x-db-column: import_items.confirmation
+    status:
+      type: string
+      readOnly: true
+      x-db-column: import_items.status
+      enum: *id006
+    result:
+      anyOf:
+      - $ref: '#/ImportItemResult'
+      - type: 'null'
+      readOnly: true
+      x-db-column: import_items.result
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+      x-db-column: import_items.created_at
+    suggestions:
+      $ref: '#/ImportSuggestions'
+  required:
+  - item_id
+  - job_id
+  - filename
+  - sha256
+  - parse_result
+  - confirmation
+  - status
+  - result
+  - created_at
+  - suggestions
+  x-db-table: import_items
+ImportJobDetail:
+  allOf:
+  - $ref: '#/ImportJob'
+  - type: object
+    properties:
+      items:
+        type: array
+        items:
+          $ref: '#/ImportItem'
+    required:
+    - items
+ImportConfirmationResult:
+  type: object
+  properties:
+    job_id: *id001
+    row_version: *id001
+    status:
+      $ref: '#/ImportJobStatus'
+    pending_count:
+      type: integer
+      minimum: 0
+    items:
+      type: array
+      items:
+        $ref: '#/ImportItemResult'
+  required:
+  - job_id
+  - row_version
+  - status
+  - pending_count
+  - items
+ImportConfirmationRecord:
+  type: object
+  properties:
+    job_id:
+      type: integer
+      readOnly: true
+      x-db-column: import_confirmations.job_id
+    confirmation_hash:
+      type: string
+      readOnly: true
+      x-db-column: import_confirmations.confirmation_hash
+    result:
+      readOnly: true
+      x-db-column: import_confirmations.result
+      $ref: '#/ImportConfirmationResult'
+  required:
+  - job_id
+  - confirmation_hash
+  - result
+  x-db-table: import_confirmations
+SourceFileOccurrence:
+  type: object
+  properties:
+    occurrence_id:
+      type: integer
+      readOnly: true
+      x-db-column: source_file_occurrences.occurrence_id
+    source_file_id:
+      type: integer
+      readOnly: true
+      x-db-column: source_file_occurrences.source_file_id
+    import_item_id:
+      type: integer
+      readOnly: true
+      x-db-column: source_file_occurrences.import_item_id
+    owner_user_id:
+      type: integer
+      readOnly: true
+      x-db-column: source_file_occurrences.owner_user_id
+    sample_id:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: source_file_occurrences.sample_id
+    filename:
+      type: string
+      readOnly: true
+      x-db-column: source_file_occurrences.filename
+    notes:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: source_file_occurrences.notes
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+      x-db-column: source_file_occurrences.created_at
+  required:
+  - occurrence_id
+  - source_file_id
+  - import_item_id
+  - owner_user_id
+  - sample_id
+  - filename
+  - notes
+  - created_at
+  x-db-table: source_file_occurrences
+SourceFileRead:
+  type: object
+  properties:
+    file_id:
+      type: integer
+      readOnly: true
+      x-db-column: source_files.file_id
+    file_sha256:
+      type: string
+      readOnly: true
+      x-db-column: source_files.file_sha256
+    file_name:
+      type: string
+      readOnly: true
+      x-db-column: source_files.file_name
+    file_ext:
+      anyOf:
+      - type: string
+      - type: 'null'
+      readOnly: true
+      x-db-column: source_files.file_ext
+    size_bytes:
+      anyOf:
+      - type: integer
+      - type: 'null'
+      readOnly: true
+      x-db-column: source_files.size_bytes
+    is_readonly:
+      type: boolean
+      readOnly: true
+      x-db-column: source_files.is_readonly
+    created_at:
+      type: string
+      format: date-time
+      readOnly: true
+      x-db-column: source_files.created_at
+  required:
+  - file_id
+  - file_sha256
+  - file_name
+  - file_ext
+  - size_bytes
+  - is_readonly
+  - created_at
+  description: 当前 GET 安全投影；file_name 按可见 occurrence 选择，不泄漏其他上传者名字/路径/备注。
+SourceFileReadDetail:
+  allOf:
+  - $ref: '#/SourceFileRead'
+  - type: object
+    properties:
+      storage_key:
+        type: string
+        readOnly: true
+        description: 由 SHA 构造的相对不可变存储键，不是服务器绝对路径
+      occurrences:
+        type: array
+        items:
+          $ref: '#/SourceFileOccurrence'
+    required:
+    - storage_key
+    - occurrences
+MeasurementSupersedeRequest:
+  type: object
+  properties:
+    replacement_measurement_id: *id001
+    expected_row_version: *id001
+    expected_replacement_row_version: *id001
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 20000
+  required:
+  - replacement_measurement_id
+  - expected_row_version
+  - expected_replacement_row_version
+  - reason
+  additionalProperties: false
+  x-python-strict: true
+  x-nonblank-fields:
+  - reason
+MeasurementSupersedeResult:
+  allOf:
+  - $ref: ../openapi.yaml#/components/schemas/MeasurementDetail
+  - type: object
+    properties:
+      replacement:
+        $ref: ../openapi.yaml#/components/schemas/Measurement
+    required:
+    - replacement
+ImportDeleteResult:
+  type: object
+  required:
+  - job_id
+  - deleted
+  - cleanup
+  properties:
+    job_id:
+      type: integer
+    deleted:
+      type: boolean
+      const: true
+    cleanup:
+      type: string
+ImportSampleOption:
+  type: object
+  required:
+  - sample_id
+  - sample_code
+  - display_label
+  - batch_code
+  properties:
+    sample_id:
+      type: integer
+    sample_code:
+      type: string
+    display_label:
+      type:
+      - string
+      - 'null'
+    batch_code:
+      type: string
+ImportProcessOption:
+  type: object
+  required:
+  - process_id
+  - process_code
+  properties:
+    process_id:
+      type: integer
+    process_code:
+      type: string
+ImportBaselineOption:
+  type: object
+  required:
+  - measurement_id
+  - measurement_code
+  - stage
+  - stage_seq
+  - optical_model_id
+  properties:
+    measurement_id:
+      type: integer
+    measurement_code:
+      type: string
+    stage:
+      $ref: '#/MeasurementStage'
+    stage_seq:
+      type: integer
+    optical_model_id:
+      type:
+      - integer
+      - 'null'
+ImportAssociationOptions:
+  type: object
+  required:
+  - sample
+  - processes
+  - baseline_measurements
+  properties:
+    sample:
+      $ref: '#/Sample'
+    processes:
+      type: array
+      items:
+        $ref: '#/ImportProcessOption'
+    baseline_measurements:
+      type: array
+      items:
+        $ref: '#/ImportBaselineOption'

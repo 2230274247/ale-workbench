@@ -1,0 +1,16 @@
+/* Approved cold soft-UI: depth is limited to data readings and key controls. */
+:root{--navy:#102438;--canvas:#eef3f6;--surface:#f8fafc;--line:#d5e1e7;--ink:#203a4b;--muted:#536b7d;--lab-inset-surface:#edf3f6;--lab-raised:5px 5px 18px #c7d3dc45,-4px -4px 14px #fff;--lab-inset:inset 2px 2px 6px #d4dfe650,inset -2px -2px 6px #fff;--radius-panel:12px}
+.page-main .panel{background:var(--surface);border-radius:var(--radius-panel);box-shadow:var(--lab-raised)}
+.page-main .el-button:not(.is-link):not(.is-text),.el-dialog .el-button:not(.is-link):not(.is-text),.el-drawer .el-button:not(.is-link):not(.is-text){min-height:40px;border-radius:7px;transition:background-color .16s,border-color .16s,box-shadow .16s,transform .16s}
+.page-main .el-button--primary:not(.is-link):not(.is-text){box-shadow:2px 3px 7px #087f8c22}
+.page-main .el-button:not(.is-link):not(.is-text):not(:disabled):active{transform:translateY(1px);box-shadow:var(--lab-inset)}
+.page-main .el-button:disabled,.el-drawer .el-button:disabled{box-shadow:none}
+.page-main details>summary{min-height:40px;line-height:1.7;padding-top:8px;padding-bottom:8px;cursor:pointer}
+.page-main a:focus-visible,.page-main button:focus-visible,.page-main summary:focus-visible,.el-dialog :focus-visible,.el-drawer :focus-visible{outline:3px solid #087f8c;outline-offset:3px}
+.page-main .el-table{--el-table-header-bg-color:#edf3f6;--el-table-border-color:var(--line);--el-table-row-hover-bg-color:#edf6f6}
+.page-main .el-table .cell{overflow-wrap:anywhere}
+.page-main input[type=checkbox]{width:18px;height:18px;accent-color:#087f8c;flex-shrink:0}
+.state-panel{background:transparent;border-radius:10px}
+.form-section-heading h3{line-height:1.6}
+@media(max-width:760px){.topbar{height:auto;min-height:76px;flex-wrap:wrap;padding:12px 16px;gap:8px}.topbar .breadcrumb{flex:1}.topbar .header-actions{gap:8px}.topbar .session-identity{order:3;flex-basis:100%;max-width:100%;font-size:11px;gap:3px 8px;overflow-wrap:anywhere}.topbar .session-identity span:nth-child(2){max-width:100%;overflow-wrap:anywhere}.page-main .panel{box-shadow:2px 3px 10px #c7d3dc35}.page-main .el-button:not(.is-link):not(.is-text){min-height:44px}.page-main .el-button:active{transform:none}}
+@media(prefers-reduced-motion:reduce){.app-shell *, .el-overlay *, .app-shell *::before,.app-shell *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.app-shell .el-button:active,.app-shell .start-action:active{transform:none!important}}

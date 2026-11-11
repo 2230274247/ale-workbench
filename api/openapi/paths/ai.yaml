@@ -1,0 +1,479 @@
+/api/v1/ai/status:
+  get:
+    tags:
+    - AI助手
+    summary: getAIStatus
+    operationId: getAIStatus
+    x-implementation-status: implemented
+    description: 所有登录角色；enabled为全局启用且当前用户账户策略允许科研AI，configured为全局连接配置状态。management默认拒绝科研AI，testing默认拒绝外发，需admin策略显式允许。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIStatus
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+/api/v1/ai/config:
+  get:
+    tags:
+    - AI助手
+    summary: getAIConfig
+    operationId: getAIConfig
+    x-implementation-status: implemented
+    description: 仅admin。AI工具每次重新检查当前权限与数据，排除作废样品。HTTP200内检查data.status/error；provider失败不转换为HTTP502。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIConfig
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+  put:
+    tags:
+    - AI助手
+    summary: updateAIConfig
+    operationId: updateAIConfig
+    x-implementation-status: implemented
+    description: base_url改变清除旧密钥，除非同时提供新api_key；地址不变时留空保留。修改连接清空发现列表。 仅admin。AI工具每次重新检查当前权限与数据，排除作废样品。HTTP200内检查data.status/error；provider失败不转换为HTTP502。
+      完整替换同时包含user_monthly_budget/user_monthly_token_limit/user_policies；策略额度null继承用户默认值，允许标志null继承账户用途默认，显式true才能解除management科研AI与testing外发默认拒绝。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIConfig
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/AIConfigWrite
+/api/v1/ai/chat:
+  post:
+    tags:
+    - AI助手
+    summary: chatAI
+    operationId: chatAI
+    x-implementation-status: implemented
+    description: 所有登录角色。AI工具每次重新检查当前权限与数据，排除作废样品。HTTP200内检查data.status/error；provider失败不转换为HTTP502。 request_id(UUID)幂等：同ID不同输入409、他人ID404；已结算原ID查询不外发、不重复计费；重新核验当前session、配置revision及全部证据，一致则返回原答案/来源/trace并replayed=true，否则status=failed、隐藏答案/来源/trace并给出authorization_changed、configuration_changed或evidence_unavailable。旧版本无证据请求保守隐藏。conversation_id仅本人且须存在，忙会话409；省略创建新会话。消息非空白1..4000字符；context
+      kind=none须id=null，其余须严格正整数。服务端仅参考最近两轮成功请求的用户意图（每轮最多1000字符），最多重新执行四个去重白名单工具计划；使用当前账户范围获取新数据，支持省略ID的追问。客户端不能提交历史，旧模型回答不发送模型。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AITurnResult
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '429':
+        $ref: ../openapi.yaml#/components/responses/TooManyRequests
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/AIChatRequest
+/api/v1/ai/test:
+  post:
+    tags:
+    - AI助手
+    summary: testAIProvider
+    operationId: testAIProvider
+    x-implementation-status: implemented
+    description: 仅admin。AI工具每次重新检查当前权限与数据，排除作废样品。HTTP200内检查data.status/error；provider失败不转换为HTTP502。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AITurnResult
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '429':
+        $ref: ../openapi.yaml#/components/responses/TooManyRequests
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/AITestRequest
+/api/v1/ai/models:
+  get:
+    tags:
+    - AI助手
+    summary: listAIModels
+    operationId: listAIModels
+    x-implementation-status: implemented
+    description: 仅admin。AI工具每次重新检查当前权限与数据，排除作废样品。HTTP200内检查data.status/error；provider失败不转换为HTTP502。 GET会调用供应商并持久化模型列表/调用账本，计每日调用，不占token/费用预留；每次由服务器生成新request_id。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AITurnResult
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+      '429':
+        $ref: ../openapi.yaml#/components/responses/TooManyRequests
+/api/v1/ai/usage:
+  get:
+    tags:
+    - AI助手
+    summary: getAIUsage
+    operationId: getAIUsage
+    x-implementation-status: implemented
+    description: 仅admin。AI工具每次重新检查当前权限与数据，排除作废样品。HTTP200内检查data.status/error；provider失败不转换为HTTP502。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIUsageSummary
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+/api/v1/ai/requests:
+  get:
+    tags:
+    - AI助手
+    summary: listAIRequests
+    operationId: listAIRequests
+    x-implementation-status: implemented
+    description: 所有登录角色；普通用户本人、admin全用户。最新100条created_at/request_id倒序；只含账目，不含问题、答案或内部证据。读取时惰性恢复过期租约，不调用供应商。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIRequestList
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+/api/v1/ai/requests/{request_id}:
+  get:
+    tags:
+    - AI助手
+    summary: getAIRequest
+    operationId: getAIRequest
+    x-implementation-status: implemented
+    description: 所有登录角色；本人或admin可读，他人请求404。GET同时惰性恢复；仅账目，不重放科研答案。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIRequestAccount
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+    parameters:
+    - name: request_id
+      in: path
+      required: true
+      schema: &id001
+        type: string
+        format: uuid
+/api/v1/ai/recover:
+  post:
+    tags:
+    - AI助手
+    summary: recoverAIRequests
+    operationId: recoverAIRequests
+    x-implementation-status: implemented
+    description: 仅admin；无请求body。恢复已过180秒固定租约的pending（旧无租约元数据宽限300秒），终态CAS结算一次、释放剩余预留/会话忙锁并隔离旧执行。不自动重发；未知已派发调用保守记账。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIRecoverResult
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+/api/v1/ai/requests/{request_id}/reconcile:
+  post:
+    tags:
+    - AI助手
+    summary: reconcileAIRequest
+    operationId: reconcileAIRequest
+    x-implementation-status: implemented
+    description: 仅admin；仅终态未知估算费用可凭供应商证据对账一次。相同ID及相同submission重放无重复调整；同ID不同内容、第二次对账或pending/非估算409。允许0、部分或高于原估算的真实费用，即使超预算；调整原账期，保留原usage及证据/操作者/时间审计，不外发。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIRequestAccountAdmin
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+      '404':
+        $ref: ../openapi.yaml#/components/responses/NotFound
+      '409':
+        $ref: ../openapi.yaml#/components/responses/Conflict
+    parameters:
+    - name: request_id
+      in: path
+      required: true
+      schema: *id001
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../openapi.yaml#/components/schemas/AIReconcileRequest
+/api/v1/ai/policy:
+  get:
+    tags:
+    - AI助手
+    summary: getAIPolicy
+    operationId: getAIPolicy
+    x-implementation-status: implemented
+    description: 所有登录角色；读取本人有效账户策略和用户月额度，不调用外部模型。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIPolicy
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
+/api/v1/ai/usage/me:
+  get:
+    tags:
+    - AI助手
+    summary: getAIMyUsage
+    operationId: getAIMyUsage
+    x-implementation-status: implemented
+    description: 所有登录角色；当前用户的UTC月额度、已记账和pending预留，无请求返回零；惰性恢复过期租约，不调用外部模型。
+    responses:
+      '200':
+        description: 成功；实际响应使用统一包络
+        content:
+          application/json:
+            schema:
+              allOf:
+              - $ref: ../openapi.yaml#/components/schemas/ApiEnvelope
+              - type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: ../openapi.yaml#/components/schemas/AIMyUsage
+      '401':
+        $ref: ../openapi.yaml#/components/responses/Unauthorized
+      '403':
+        $ref: ../openapi.yaml#/components/responses/Forbidden
+      '422':
+        $ref: ../openapi.yaml#/components/responses/UnprocessableEntity
+      '500':
+        $ref: ../openapi.yaml#/components/responses/InternalError
+      '503':
+        $ref: ../openapi.yaml#/components/responses/ServiceUnavailable
