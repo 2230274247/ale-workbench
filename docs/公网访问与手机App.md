@@ -1,7 +1,25 @@
 # 公网访问与手机 App（数据同步方案）
 
-> 2026-11-12 新增。目标：手机在外网也能填写实验，数据与电脑实时一致，并打包成可安装的原生 App。
+> 2026-11-12 新增。目标：手机在外网也能填写实验，数据与电脑实时一致。
 > 核心结论：**本工作台没有「另一份数据」需要同步**——手机端和电脑端走同一个后端、同一个 MySQL 库。所以「同步」不是另写一套同步机制，而是让手机能安全地连到这台后端。
+> 日常推荐「临时开启/关闭」（无需账号），见下一节；「常驻固定域名」见第 2 节。
+
+## 0. 临时开启/关闭（日常推荐，无需账号）
+
+适合「需要用手机记录时临时开公网、用完就关」。用 Cloudflare 快速隧道，**不需要账号、不需要域名**，跑一条命令得到一个临时 `https://xxx.trycloudflare.com` 网址，关掉进程公网即失效。
+
+> **桌面启动器（launcher 1.9.0+）已内置自动隧道**：双击启动工作站即自动开启隧道并在浏览器弹出手机网址，退出启动器自动关闭隧道与后端。下面的命令行脚本仅在「不使用桌面启动器」或「需手动临时开关」时用。
+
+```powershell
+# 前提：后端已启动（H:\ALE_AI\启动工作台.cmd）；cloudflared 已装（见下）
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\开启临时公网.ps1
+```
+
+脚本会自动：检查后端 `/health` → 启动临时隧道 → 提取网址并复制到剪贴板、用浏览器打开。手机打开 `https://<临时网址>/m/quick` 登录即填；按 Ctrl+C 关闭。
+
+- **登录态刷新**：临时网址每次都变，后端 Origin 白名单已放行 `*.trycloudflare.com`（`backend/app/security.py`），否则登录约 1 小时后刷新会被 403 拒绝。此放行仅针对 Cloudflare 快速隧道子域，配合 `SameSite=strict` 不降低跨站防护。
+- **手机形态**：临时网址每次不同，**不适合**把网址写死的 Capacitor APK；手机浏览器或「添加到主屏幕」即可（见 `docs/ale_v2_2/05_mobile_web.md`）。APK 壳留作「常驻固定域名」时使用。
+- **安装 cloudflared**（一次）：`winget install --id Cloudflare.cloudflared --accept-package-agreements --accept-source-agreements`（或官方下载，装完重开终端）。
 
 ## 1. 为什么数据天然是同步的
 
@@ -98,7 +116,10 @@ APK 拷到手机侧载安装即可；后续按需加 `@capacitor/camera`（拍�
 ## 5. 涉及文件
 
 - `docs/公网访问与手机App.md`（本文）
-- `deploy/cloudflared/config.yml.example`（隧道模板）
-- `mobile-app/`（Capacitor 壳工程：`package.json`、`capacitor.config.ts`、`README.md`、`.gitignore`）
+- `deploy/开启临时公网.ps1`（临时开启/关闭公网一键脚本，命令行场景）
+- `tunnel.ps1`（桌面启动器调用的后台隧道启停脚本，`-Action start|stop|status`）
+- `deploy/cloudflared/config.yml.example`（常驻固定域名隧道模板）
+- `mobile-app/`（Capacitor 壳工程，仅常驻固定域名场景使用）
 - `backend/.env.example`（`ALE_COOKIE_SECURE` / `ALE_ALLOWED_ORIGINS` 说明更新）
+- `backend/app/security.py`（放行 `*.trycloudflare.com` 临时隧道 Origin）
 - 相关背景：`docs/ale_v2_2/05_mobile_web.md`（移动网页版与升级路径）、`docs/配置与部署.md`

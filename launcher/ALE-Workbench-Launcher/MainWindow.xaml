@@ -1,0 +1,166 @@
+<Window x:Class="AleWorkbench.Launcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="ALE Workbench"
+        Icon="/Assets/app.ico"
+        Width="1000" Height="760"
+        MinWidth="760" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="#F1F5F9"
+        Closing="Window_Closing">
+
+    <DockPanel>
+        <!-- Header -->
+        <Grid DockPanel.Dock="Top" Margin="16,14,16,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Row 0: title + overall status -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="ALE Workbench" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                    <TextBlock x:Name="VersionText" Text="v1.9.0" FontSize="12" Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Bottom" Margin="10,0,0,2"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse x:Name="StateDot" Width="12" Height="12" VerticalAlignment="Center" Fill="{StaticResource GrayBrush}"/>
+                    <TextBlock x:Name="StateLabel" Text="未启动" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="StateDetail" Text="" FontSize="11" Foreground="{StaticResource MutedBrush}"
+                               Margin="12,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Row 1: buttons -->
+            <WrapPanel Grid.Row="1" Margin="0,10,0,0">
+                <Button x:Name="StartButton" Content="启动工作站" Width="104" Height="34" Margin="0,0,8,8"
+                        Style="{StaticResource PrimaryButton}" Click="Start_Click"/>
+                <Button x:Name="OpenButton" Content="打开工作站" Width="104" Height="34" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Click="Open_Click"/>
+                <Button x:Name="StopButton" Content="停止工作站" Width="104" Height="34" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Click="Stop_Click"/>
+                <Button x:Name="RestartButton" Content="重启工作站" Width="104" Height="34" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Click="Restart_Click"/>
+                <Button x:Name="LogButton" Content="查看日志" Width="96" Height="34" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Click="Log_Click"/>
+                <Button x:Name="BrowserButton" Content="浏览器打开" Width="96" Height="34" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Click="Browser_Click"/>
+                <Button x:Name="VersionButton" Content="版本" Width="72" Height="34" Margin="0,0,8,8"
+                        Style="{StaticResource SecondaryButton}" Click="Version_Click"/>
+                <Button x:Name="SettingsButton" Content="设置" Width="72" Height="34" Margin="0,0,0,8"
+                        Style="{StaticResource SecondaryButton}" Click="Settings_Click"/>
+            </WrapPanel>
+
+            <!-- Row 2: compact status chips -->
+            <WrapPanel Grid.Row="2">
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
+                    <Ellipse x:Name="BackendDot" Width="9" Height="9" VerticalAlignment="Center" Fill="{StaticResource GrayBrush}"/>
+                    <TextBlock Text="后端" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="6,0,4,0"/>
+                    <TextBlock x:Name="BackendValue" Text="未启动" FontSize="11" Foreground="{StaticResource TextBrush}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
+                    <Ellipse x:Name="DbDot" Width="9" Height="9" VerticalAlignment="Center" Fill="{StaticResource GrayBrush}"/>
+                    <TextBlock Text="数据库" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="6,0,4,0"/>
+                    <TextBlock x:Name="DbValue" Text="未检查" FontSize="11" Foreground="{StaticResource TextBrush}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
+                    <Ellipse x:Name="FrontendDot" Width="9" Height="9" VerticalAlignment="Center" Fill="{StaticResource GrayBrush}"/>
+                    <TextBlock Text="前端" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="6,0,4,0"/>
+                    <TextBlock x:Name="FrontendValue" Text="未就绪" FontSize="11" Foreground="{StaticResource TextBrush}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="地址" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,4,0"/>
+                    <TextBlock x:Name="UrlValue" Text="（未配置）" FontSize="11" Foreground="{StaticResource AccentBrush}"/>
+                </StackPanel>
+            </WrapPanel>
+
+            <!-- Row 3: live startup progress -->
+            <Grid x:Name="ProgressPanel" Grid.Row="3" Margin="0,10,0,0" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <ProgressBar x:Name="StartProgress" Grid.Row="0" Grid.Column="0" Style="{StaticResource GlowProgressBar}"
+                             Minimum="0" Maximum="100" Value="0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StartProgressPercent" Grid.Row="0" Grid.Column="1" Text="0%" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource AccentBrush}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StartProgressText" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="正在启动…" FontSize="12"
+                           Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+            </Grid>
+        </Grid>
+
+        <!-- Settings panel -->
+        <Border x:Name="SettingsPanel" DockPanel.Dock="Top" Background="{StaticResource CardBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,0,1"
+                Padding="16,12" Margin="16,0,16,8" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Text="设置" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Margin="0,0,0,10"/>
+                <TextBlock x:Name="ConfigHint" Text="首次使用请选择 ALE Workbench 项目目录（包含 start-workbench.ps1）。"
+                           FontSize="12" Foreground="{StaticResource ErrorBrush}" Margin="0,0,0,8" Visibility="Collapsed"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="项目目录" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Margin="0,0,8,0"/>
+                    <TextBox x:Name="ProjectRootBox" Grid.Column="1" Height="28" VerticalContentAlignment="Center" Padding="4,0" VerticalAlignment="Center"/>
+                    <Button Grid.Column="2" Content="浏览…" Width="70" Height="28" Margin="8,0,0,0"
+                            Style="{StaticResource SecondaryButton}" Click="BrowseProject_Click"/>
+                </Grid>
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="运行模式" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Margin="0,0,8,0"/>
+                    <ComboBox x:Name="ModeBox" Grid.Column="1" Height="28" VerticalContentAlignment="Center" SelectionChanged="ModeBox_SelectionChanged">
+                        <ComboBoxItem Content="本地（管理本机后端）" Tag="local"/>
+                        <ComboBoxItem Content="远程（云端地址）" Tag="remote"/>
+                    </ComboBox>
+                </Grid>
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="云端地址" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" Margin="0,0,8,0"/>
+                    <TextBox x:Name="RemoteUrlBox" Grid.Column="1" Height="28" VerticalContentAlignment="Center" Padding="4,0"/>
+                </Grid>
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <CheckBox x:Name="AutoStartBox" Content="启动器打开时自动启动工作站" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                    <CheckBox x:Name="TrayBox" Content="关闭窗口时最小化到托盘" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                    <Button x:Name="SaveSettingsButton" Content="保存设置" Width="96" Height="32"
+                            Style="{StaticResource PrimaryButton}" Click="SaveSettings_Click"/>
+                    <Button Content="取消" Width="76" Height="32" Margin="10,0,0,0"
+                            Style="{StaticResource SecondaryButton}" Click="CancelSettings_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Footer -->
+        <Grid DockPanel.Dock="Bottom" Margin="16,6,16,10">
+            <TextBlock x:Name="FooterText" Text="" FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+        </Grid>
+
+        <!-- WebView2: embedded Vue workstation -->
+        <Border Margin="16,0,16,0" Background="White" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8">
+            <wv2:WebView2 x:Name="WebView"/>
+        </Border>
+    </DockPanel>
+</Window>

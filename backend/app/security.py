@@ -77,7 +77,8 @@ def allowed_origin(origin):
     if origin in ALLOWED_ORIGINS:return True
     try:
         p=urlsplit(origin)
-        return p.scheme in ('http','https') and p.hostname in ('localhost','127.0.0.1','172.16.10.3') and not p.username and not p.password and p.path in ('','/') and not p.query and not p.fragment
+        host=(p.hostname or '')
+        return p.scheme in ('http','https') and (host in ('localhost','127.0.0.1','172.16.10.3') or host.endswith('.trycloudflare.com')) and not p.username and not p.password and p.path in ('','/') and not p.query and not p.fragment
     except ValueError:return False
 
 def cookie_origin(request):

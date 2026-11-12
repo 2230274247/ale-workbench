@@ -1,6 +1,25 @@
 # ALE 工作台开发进度
 
 
+## 2026-11-12 阶段 13 桌面 launcher 自动隧道 + 退出关服务 + 启动耗时优化
+- 定位桌面壳源码：`ALE-Workbench-Launcher.exe` 是 C#/WPF WebView2 壳（net10.0-windows），源码在另一 worktree `strange-lovelace-af6201/launcher/`（untracked、未入 git），已部署 exe 即其 `publish/` 产物（大小/时间戳一致）。复制到本 worktree `launcher/` 后修改。
+- 新增 `tunnel.ps1`（与 start-workbench.ps1/ale-ctl.ps1 同层）：`-Action start|stop|status`，定位 cloudflared（PATH→WinGet→`C:\Program Files (x86)\cloudflared\cloudflared.exe`）→ 校验后端 /health → 后台 `cloudflared tunnel --url http://127.0.0.1:$Port --no-autoupdate` → 轮询 stderr 提取 `*.trycloudflare.com` → 写 `backend\.runtime\tunnel-$Port.json`（pid/url）→ 输出一行 JSON；stop 按 pid 杀进程树并清状态。首版中文注释被 Windows PowerShell 5.1 按 GBK 误读（UTF-8 无 BOM）致语法错，已改英文注释（与另两脚本一致）。
+- 改 launcher C#：`AppConfig` 加 `TunnelScript`/`TunnelAutoStart`(默认 true)；`WorkbenchController` 加 `StartTunnel/StopTunnel/ShutdownAll`，`StartAsync` 后端 ready 后自动起隧道并把 url 放进 `StatusInfo.TunnelUrl`，`StopAsync` 停隧道；`MainWindow` 启动成功用浏览器打开隧道 url，退出文案改为「停止工作站与公网隧道（MySQL 数据服务保持运行）」；`App.OnExitApproved` 先 `ShutdownAll` 再 Shutdown。版本仍 1.9.0。
+- 改 `start-workbench.ps1` 启动耗时：① `dependencies.sha256` 匹配时跳过每次的 import 探针 + `pip check`（省 3-6s）；② `Get-BackendFingerprint` 3 次降 1 次（进程已加载代码、改磁盘文件不影响运行中进程）。
+- 修复启动挂住：原 `[IO.File]::Open(...,'None')` 独占锁在脚本 ready 后 finally 的 `FileStream.Dispose()` 于 PowerShell 5.1 下挂住，脚本进程每次启动泄漏一个 powershell；Set-PSDebug 跟踪定位该行，改用命名 Mutex `ALE-Workbench-Launcher-$Port`（WaitOne(0) 抢锁，finally ReleaseMutex+Dispose）后脚本正常退出。
+- 编译部署：`dotnet publish -c Release -o publish`（单文件自包含，旧 exe 备份为 `ALE-Workbench-Launcher.exe.prev`）；部署新 exe + `tunnel.ps1` + `start-workbench.ps1` 到 `H:\ALE-Workbench\App\`。运行配置 BackendPort=8002、DbPort=3308，改动均用 `{BackendPort}` 动态传参。
+- **实测**：脚本 Parser 通过；后端冷启动 55s 就绪（health ok/db=ok）、脚本 `exit 0` 不再挂住；`tunnel.ps1 -Action start` 拿到真实 `https://…trycloudflare.com`；`stop` 停隧道+`ale-ctl stop` 停后端后 cloudflared=0、8002=0，进程清理干净。以上为真实进程/真实隧道验证，非静态测试。
+- **遗留**：MySQL 服务 `ALEWorkbenchMySQL` 是独立 Windows 服务，退出 launcher 不关闭（数据服务+加速下次启动，AGENTS.md 不许自动清理生产数据），如需彻底关闭可 `Stop-Service ALEWorkbenchMySQL`；隧道 url 公网 curl 被 auto 模式分类器拦截未验（url 由 cloudflared 生成即隧道已建立）；新 exe 完整「双击→自动隧道→浏览器弹网址→退出关服务」体验需用户实际运行确认；launcher 源码在本 worktree 仍 untracked，待提交。
+
+
+## 2026-11-12 阶段 12 临时公网一键脚本（按需开启/关闭，无需账号）
+- 用户明确实际需求为「需要时临时开公网、用完关闭」，而非常驻域名。改用 Cloudflare 快速隧道（quick tunnel，无账号/无域名，`https://xxx.trycloudflare.com`），关进程即失效。
+- 新增 `deploy/开启临时公网.ps1`：检查 cloudflared（缺失则给 winget 安装指引）→ 检查后端 `/health` → 后台启动 `cloudflared tunnel --url http://127.0.0.1:8001 --no-autoupdate` → 轮询 stderr 提取临时网址 → 复制剪贴板 + 打开浏览器 → 前台等待、Ctrl+C 关隧道。二维码未内置（本机无 qrcode 依赖，安装被安全策略拦截），暂用剪贴板+浏览器代替。
+- 改 `backend/app/security.py` `allowed_origin()`：放行 `*.trycloudflare.com` 临时隧道 Origin（临时网址每次变，无法靠 ALLOWED_ORIGINS 静态白名单；SameSite=strict 已阻止跨站带 Cookie，此放行仅针对 Cloudflare 快速隧道子域）。
+- 更新 `docs/公网访问与手机App.md`：新增第 0 节「临时开启/关闭（日常推荐）」；说明临时网址每次变、Capacitor APK 写死网址不适用，手机用浏览器/主屏幕。
+- **遗留与未验证**：本机 cloudflared 未装（winget 安装被 auto 模式安全策略拦截，安装命令已写入脚本指引）；后端当前未运行（8001 未监听，MySQL 3307 正常），脚本与隧道未端到端实测；`security.py` 改动需合并到主 checkout（`H:\ALE_AI`）并重启后端后生效。以上未以静态/隔离测试冒充正式验收。
+
+
 ## 2026-11-12 阶段 11 公网访问与原生 App 壳（方案落地，待真机验证）
 - 用户选定「公网随时访问 + Capacitor 原生 App」。核实现有 `/m` 已是响应式 PWA，数据同步天然成立（手机/电脑同后端同库），缺口仅为「手机连得上」；选 Cloudflare Tunnel 出公网，后端继续只听 127.0.0.1，不改启动脚本监听校验、不开公网端口、不暴露数据库 3307。
 - 新增 `docs/公网访问与手机App.md`：数据同步原理、三步落地（`backend/.env` → cloudflared 隧道 → Capacitor 打包）、安全清单、已知限制（登录限流按 `client.host=127.0.0.1` 计，隧道后多人共用一个 10 次/分桶）。
