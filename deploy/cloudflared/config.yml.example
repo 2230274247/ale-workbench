@@ -1,0 +1,16 @@
+# Cloudflare Tunnel 命名隧道配置示例（复制为 config.yml 后填写）
+# 参考 docs/公网访问与手机App.md 第 2 步。
+#
+# tunnel:          cloudflared tunnel create <名字> 后打印的隧道 UUID
+# credentials-file: tunnel create 后生成的 <UUID>.json 的完整路径
+# ingress.hostname: 你已接管的域名；service 固定指向本机 127.0.0.1:8001
+#
+# 注意：本文件含凭据路径，不要提交到 git（建议加入 .gitignore）。
+
+tunnel: <你的隧道UUID>
+credentials-file: C:\Users\<你的用户名>\.cloudflared\<隧道UUID>.json
+
+ingress:
+  - hostname: ale.example.com
+    service: http://127.0.0.1:8001
+  - service: http_status:404

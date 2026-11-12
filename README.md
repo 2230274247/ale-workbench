@@ -44,6 +44,8 @@ ALE_AI/
 │  └─ .dbcreds.example 管理员凭据模板
 ├─ api/                OpenAPI 契约与生成产物
 ├─ docs/ale_v2_2/      字段字典、Excel 映射合同、API 合同、移动端与升级路径
+├─ mobile-app/         Capacitor 原生 App 壳（加载公网 /m）
+├─ deploy/cloudflared/ Cloudflare Tunnel 配置模板
 ├─ start-workbench.ps1 Windows 启动器（进程身份校验、指纹记录）
 └─ 启动工作台.cmd      双击入口（转发上面的 ps1）
 ```
@@ -166,6 +168,7 @@ $env:ALE_DB_NAME="ale_workbench_test"; $env:ALE_REQUIRE_TEST_DB="1"
 - `docs/ale_v2_2/04_excel_mapping_contract.md` Excel 映射与批量导入合同
 - `docs/ale_v2_2/05_mobile_web.md` 移动网页版与 App / 小程序升级路径
 - `docs/配置与部署.md` 环境变量、目录、常见故障
+- `docs/公网访问与手机App.md` 公网访问（Cloudflare Tunnel）+ Capacitor 原生 App 打包
 - `progress_log.md` 开发进度（按日期倒序）
 
 ## 许可

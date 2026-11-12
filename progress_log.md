@@ -1,6 +1,15 @@
 # ALE 工作台开发进度
 
 
+## 2026-11-12 阶段 11 公网访问与原生 App 壳（方案落地，待真机验证）
+- 用户选定「公网随时访问 + Capacitor 原生 App」。核实现有 `/m` 已是响应式 PWA，数据同步天然成立（手机/电脑同后端同库），缺口仅为「手机连得上」；选 Cloudflare Tunnel 出公网，后端继续只听 127.0.0.1，不改启动脚本监听校验、不开公网端口、不暴露数据库 3307。
+- 新增 `docs/公网访问与手机App.md`：数据同步原理、三步落地（`backend/.env` → cloudflared 隧道 → Capacitor 打包）、安全清单、已知限制（登录限流按 `client.host=127.0.0.1` 计，隧道后多人共用一个 10 次/分桶）。
+- 新增 `deploy/cloudflared/config.yml.example`（命名隧道 ingress 模板，service 指向 http://127.0.0.1:8001）。
+- 新增 `mobile-app/` Capacitor 壳工程：`package.json`（@capacitor 8.6.0 + `typescript`，`.ts` 配置需本地装 TS，首跑曾报缺 TS 已补）、`capacitor.config.ts`（server.url 指向公网域名加载 /m，后端/前端业务代码零改动）、`README.md`、`.gitignore`。
+- 更新 `backend/.env.example`（`ALE_ALLOWED_ORIGINS` 说明其为刷新/登出 Origin 校验、公网必填，否则约 1 小时掉线）、`README.md`（文档索引与目录树）。
+- **遗留与未验证**：`npx cap add android` 已在本机成功生成 `android/` 平台（证实 config 被 Capacitor 8.6 接受；`cap sync` 因缺 `../frontend/dist` 未跑，属预期，见 README 步骤 3）；APK 未出（本机无 Android SDK，需在装 Android Studio 的机器执行 gradlew assembleDebug）；cloudflared 未安装、隧道与域名未创建；`ALE_COOKIE_SECURE=true` 与 Origin 校验未在真实 HTTPS 下实测；App 未真机安装。以上均依赖用户侧 Cloudflare 账号/域名与 Android Studio，属待办，未以静态/隔离测试冒充正式验收。
+
+
 ## 2026-11-11 阶段 10 仓库整理与 GitHub 托管
 - 新建 `.gitignore` 独立规则：排除 `.env / .appcreds / .dbcreds / .setup-code / .ai-master-key`、`mysql_data/`、`mysql-server/`、`storage*/`、`backups/`、`reports/`、`logs*/`、`node_modules/`、`frontend/dist/`、虚拟环境、`.claude/`、`.workbuddy/`；首次提交 278 文件 / 120502 行，暂存扫描无明文密钥。
 - 新增 `README.md`（功能、技术栈、目录、七步上手、配置表、测试、安全边界）、`docs/配置与部署.md`（环境变量、凭据格式、建库与迁移顺序、端口、手机访问、故障表、备份、升级、提交自检）、`backend/.env.example`、`database/.dbcreds.example`、`database/.appcreds.example`；`vite.config.ts` 开发代理 8000→8001 与启动器默认端口对齐。
