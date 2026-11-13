@@ -1,6 +1,26 @@
 # ALE 工作台开发进度
 
 
+## 2026-11-13 批量导入：日期自动规范化 + 新材料审核入库 + 记录表每页条数
+用户反馈两份需求：①批量导入上传的原表里日期写成 `2026.8.24`、材料 `ZnO`/`HfO2` 不在材料目录，预览整行报错，希望后端自动优化日期格式、把缺失材料自动添加并最后审核；②「记录与结果」表太长，希望加每页条数下拉（10/20/50/100，默认 10）。
+
+**修改文件**：
+- `backend/app/quick_batch.py`：`_date()` 改为自动规范化日期——接受 `datetime/date`、`YYYY-MM-DD`（含带时间）、`YYYY.M.D`、`YYYY/M/D`、`YYYY-M-D`、`YYYY年M月D日`，无法解析才报错；`build_row()` 签名加 `new_materials`，材料不在目录时不再报错，而是预生成 `material_id` 并给该行打 `_material_name` 标记；`preview` 返回 `new_materials`（去重、按出现顺序）供审核；`confirm` 在同一请求事务内先幂等插入新材料（`quick_materials`，精确按名称匹配、不推断化学身份），再建 Run，响应新增 `created_materials`。预览仍不写库，SHA-256 指纹覆盖新增字段。`MAX_ROWS` 由 200 提升为 10000 作为稳定性兜底（25 MiB 单工作簿不会触及，仅防护病态超大文件与确认时单事务过大）。
+- `backend/app/quick.py`：`GET /quick/runs` 增加 `size:int=Query(10,ge=1,le=100)`，默认每页 10 条。
+- `frontend/src/views/QuickDatasetView.vue`：记录表分页条加「每页 10/20/50/100」下拉（默认 10），分页数学改用 `totalPages`；批量导入文案更新；预览新增「将自动新增材料：…」提示，材料列显示 `_material_name`；确认入库提示新增材料名。
+- `frontend/src/mobile/MobileDatasetView.vue`：移动端预览同样显示将新增材料、材料列显示 `_material_name`、确认提示新增材料名。
+- `frontend/src/views/QuickRecordView.vue`：「继续/历史」选择器显式 `size=100`，避免因默认改 10 而只看到最近 10 条。
+- `frontend/src/quick/quick.css`：新增 `.quick-page-size` 行内下拉样式。
+- `backend/tests/test_quick_v22.py`：新增 `test_stage3_batch_import_normalizes_dates_and_auto_creates_materials`（点分日期 `2026.8.24` + 新材料 `ZnO` → 预览无错、`new_materials=['ZnO']`、日期归一 `2026-08-24`，确认后 `created_materials=['ZnO']` 且材料目录可查到、Run 回读 `material_name='ZnO'`）。
+- `docs/ale_v2_2/04_excel_mapping_contract.md`：批量导入合同同步「日期自动规范化、材料不在目录先列 `new_materials` 审核、确认入库自动创建」。
+
+**验证**：
+- 纯函数离线核对（当前工作树无 venv/MySQL，不能跑 pytest）：`_date` 对 `2026.8.24/2026.1.22/2026-8-24/2026/8/24/2026年8月24日/2026-03-06 00:00:00/datetime/date` 均正确归一为 `YYYY-MM-DD`，`2026.13.1`、`abc` 正确报错；`build_row` 对缺失材料生成稳定 `material_id` 且 `_material_name` 标记正确、同材料多行复用同一 id。
+- `python -c ast.parse` 对 `quick_batch.py`、`quick.py`、`test_quick_v22.py` 通过。
+
+**边界 / 未验证**：新增 pytest 用例与前端 `vue-tsc`/`npm run build` 因本工作树缺少依赖与 `*_test` 数据库未实际执行；真实浏览器与正式账户验收待用户本人双击「启动工作台.cmd」+ `Ctrl+F5` 强刷确认。材料精确按名称匹配，大小写/别名差异不会被自动合并（不推断化学身份）。行上限从硬编码 200 放宽为 10000 兜底：用户 280 行原表不再被「超过 200 行上限」截断，同时仍以 25 MiB 文件大小 + 10000 行上限 + 确认单事务三层限制保证稳定性（不无限放宽）。
+
+
 ## 2026-11-11 阶段 10 仓库整理与 GitHub 托管
 - 新建 `.gitignore` 独立规则：排除 `.env / .appcreds / .dbcreds / .setup-code / .ai-master-key`、`mysql_data/`、`mysql-server/`、`storage*/`、`backups/`、`reports/`、`logs*/`、`node_modules/`、`frontend/dist/`、虚拟环境、`.claude/`、`.workbuddy/`；首次提交 278 文件 / 120502 行，暂存扫描无明文密钥。
 - 新增 `README.md`（功能、技术栈、目录、七步上手、配置表、测试、安全边界）、`docs/配置与部署.md`（环境变量、凭据格式、建库与迁移顺序、端口、手机访问、故障表、备份、升级、提交自检）、`backend/.env.example`、`database/.dbcreds.example`、`database/.appcreds.example`；`vite.config.ts` 开发代理 8000→8001 与启动器默认端口对齐。

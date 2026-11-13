@@ -49,7 +49,8 @@ async function upload(event: Event) {
 async function confirm() {
   await action(async () => {
     const res = await api<any>('/quick/batch/confirm', { method: 'POST', body: { rows: preview.value.rows, expected_sha256: preview.value.expected_sha256, confirm: true } })
-    info.value = `已导入 ${res.data.count} 条实验记录。`
+    const created = (res.data.created_materials || []).join('、')
+    info.value = `已导入 ${res.data.count} 条实验记录${created ? `，并新增材料：${created}` : ''}。`
     preview.value = null; confirmed.value = false
   })
 }
@@ -90,13 +91,14 @@ onMounted(async () => {
         <p class="m-sub" style="margin-top:12px">来源：{{ preview.sheet }} · 第 {{ preview.header_row }} 行表头</p>
         <p v-for="e in preview.errors" :key="e" class="m-warn">{{ e }}</p>
         <p v-for="s in preview.skipped" :key="s" class="m-hint">{{ s }}</p>
+        <p v-if="preview.new_materials?.length" class="m-warn">将自动新增材料：{{ preview.new_materials.map((m: any) => m.canonical_name).join('、') }}</p>
         <table class="m-preview-table">
           <thead><tr><th>行</th><th>日期</th><th>材料</th><th>A/B/C</th><th>EPC</th></tr></thead>
           <tbody>
             <tr v-for="r in preview.rows" :key="r._line">
               <td>{{ r._line }}</td>
               <td>{{ r.experiment_date }}</td>
-              <td>{{ materialName(r.material_id) }}</td>
+              <td>{{ r._material_name || materialName(r.material_id) }}</td>
               <td>{{ (r.program?.groups?.[0]?.steps || []).map((s: any) => s.source_label || '—').join('/') }}</td>
               <td>{{ display(r.results?.[0]?.thickness_before_nm) }}→{{ display(r.results?.[0]?.thickness_after_nm) }}</td>
             </tr>

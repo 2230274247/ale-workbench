@@ -70,7 +70,7 @@ async function save(state='recorded',continueAfter=false){
  })
  if(error.value){await nextTick();const invalid=Array.from(document.querySelectorAll<HTMLElement>('.quick-record [aria-invalid="true"]')).find(el=>!el.closest('.el-dialog')&&el.getClientRects().length>0);invalid?.focus()}
 }
-async function choices(kind:string){await action(async()=>{if(kind==='template'){templates.value=(await api<any[]>('/quick/templates')).data}else history.value=(await api<any>('/quick/runs')).data.items;picker.value=kind})}
+async function choices(kind:string){await action(async()=>{if(kind==='template'){templates.value=(await api<any[]>('/quick/templates')).data}else history.value=(await api<any>('/quick/runs',{query:{page:1,size:100}})).data.items;picker.value=kind})}
 async function reuse(run:any,continuing=false){
  const next=edit(run);next.idempotency_key=uid();next.expected_version=null;next.state='draft';next.experiment_date=today();next.started_at=null;next.ended_at=null;next.note='';next.previous_run_id=continuing?run.run_id:null
  next.program.groups.forEach((g:any)=>{g.group_id=uid();g.steps.forEach((s:any)=>s.step_id=uid())})
