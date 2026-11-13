@@ -9,9 +9,10 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Request, UploadFile, File, Body, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from pydantic import Field
-from .db import table, get_db, MigrationRequired
-from .common import envelope, fail, audit
+from .db import table, get_db, metadata, MigrationRequired
+from .common import envelope, fail, audit, dbnow
 from .security import current_user, writer
 from .experiments import fetch, visible
 from .quick_models import Model, Run, calculated
@@ -51,7 +52,7 @@ def material(db,mid,user):
 
 def present(db,row,process,user):
     body=copy.deepcopy(row['payload'])
-    body.update(run_id=row['process_id'],process_code=process['process_code'],version=process['row_version'],sequence_id=row['sequence_id'],previous_run_id=row['previous_process_id'])
+    body.update(run_id=row['process_id'],process_code=process['process_code'],version=process['row_version'],sequence_id=row['sequence_id'],previous_run_id=row['previous_process_id'],archived=process.get('archived_at') is not None)
     mats=qt('materials')
     names={r['material_id']:r['canonical_name'] for r in db.execute(select(mats)).mappings() if r['owner_user_id']==row['owner_user_id']}
     body['material_name']=names.get(body.get('material_id'))
@@ -133,7 +134,8 @@ def next_number(request:Request,experiment_date:date,db=Depends(get_db),user=Dep
 
 def selection(db,user,filters=None):
     filters=filters or {};t=qt('runs');p=table('processes')
-    query=select(t,p.c.process_code,p.c.row_version).join(p,t.c.process_id==p.c.process_id).where(visible('processes',user),p.c.voided_at.is_(None))
+    query=select(t,p.c.process_code,p.c.row_version,p.c.archived_at).join(p,t.c.process_id==p.c.process_id).where(visible('processes',user),p.c.voided_at.is_(None))
+    query=query.where(p.c.archived_at.is_not(None) if filters.get('archived')=='yes' else p.c.archived_at.is_(None))
     try:
         lower=date.fromisoformat(filters['date_from']) if filters.get('date_from') else None
         upper=date.fromisoformat(filters['date_to']) if filters.get('date_to') else None
@@ -269,6 +271,79 @@ def create_run(body:Run,request:Request,db=Depends(get_db),user=Depends(writer))
 @router.put('/runs/{id}')
 def update_run(id:int,body:Run,request:Request,db=Depends(get_db),user=Depends(writer)):
     store(db,body,user,id);row,p=raw(db,id,user);return envelope(request,present(db,row,p,user))
+
+class Batch(Model):
+    run_ids: list[int]=Field(min_length=1,max_length=200)
+
+def set_archived(db,id,user,archived):
+    """Archive (soft-delete) or restore a quick run via its backing process row.
+
+    Archiving keeps every row, revision and original untouched; it only sets the
+    process archived_at flag so the run leaves the default dataset list and its
+    external experiment ID can be reused by a re-import.
+    """
+    row,process=raw(db,id,user,lock=True)
+    if (process['archived_at'] is not None)==archived:
+        return
+    p=table('processes')
+    changed=db.execute(p.update().where(p.c.process_id==id,p.c.row_version==process['row_version'])
+                       .values(archived_at=dbnow() if archived else None,row_version=process['row_version']+1))
+    if changed.rowcount!=1:fail(409,'记录已变更，请刷新后重试')
+    audit(db,user['user_id'],'update','process',id)
+
+def delete_run(db,id,user):
+    """Hard-delete a quick run and its backing process row, never cascading history.
+
+    A run that begins a continuous sequence (another run points at it as
+    previous_process_id) cannot be removed without first removing the later runs;
+    archive is the reversible alternative. The whole request rolls back on any
+    conflict, so a batch delete is atomic.
+    """
+    row,process=raw(db,id,user,lock=True)
+    t=qt('runs')
+    if db.scalar(select(t.c.process_id).where(t.c.previous_process_id==id).limit(1)):
+        fail(409,'此记录是连续工艺的起始段，已有后续记录承接，不能删除；请先删除后续记录，或改用归档。')
+    m=metadata().tables
+    for name in ('quick_results','quick_steps'):
+        child=m.get(name)
+        if child is not None and 'run_id' in child.c:
+            db.execute(child.delete().where(child.c.run_id==id))
+    for name in ('quick_revisions','quick_imports'):
+        child=m.get(name)
+        if child is not None and 'process_id' in child.c:
+            db.execute(child.delete().where(child.c.process_id==id))
+    db.execute(t.delete().where(t.c.process_id==id))
+    try:
+        db.execute(table('processes').delete().where(table('processes').c.process_id==id))
+    except IntegrityError:
+        fail(409,'此记录仍被其他专业记录引用，不能删除；请改用归档保留历史。')
+    audit(db,user['user_id'],'delete','process',id)
+    return id
+
+@router.post('/runs/{id}/archive')
+def archive_run(id:int,request:Request,db=Depends(get_db),user=Depends(writer)):
+    set_archived(db,id,user,True)
+    return envelope(request,{'run_id':id,'archived':True})
+
+@router.post('/runs/{id}/restore')
+def restore_run(id:int,request:Request,db=Depends(get_db),user=Depends(writer)):
+    set_archived(db,id,user,False)
+    return envelope(request,{'run_id':id,'archived':False})
+
+@router.delete('/runs/{id}')
+def delete_run_endpoint(id:int,request:Request,db=Depends(get_db),user=Depends(writer)):
+    delete_run(db,id,user)
+    return envelope(request,{'run_id':id,'deleted':True})
+
+@router.post('/runs/batch-archive')
+def batch_archive(body:Batch,request:Request,db=Depends(get_db),user=Depends(writer)):
+    for i in body.run_ids:set_archived(db,i,user,True)
+    return envelope(request,{'run_ids':body.run_ids,'count':len(body.run_ids)})
+
+@router.post('/runs/batch-delete')
+def batch_delete(body:Batch,request:Request,db=Depends(get_db),user=Depends(writer)):
+    ids=[delete_run(db,i,user) for i in body.run_ids]
+    return envelope(request,{'run_ids':ids,'count':len(ids)})
 
 @router.get('/runs/{id}/revisions')
 def revisions(id:int,request:Request,db=Depends(get_db),user=Depends(current_user)):

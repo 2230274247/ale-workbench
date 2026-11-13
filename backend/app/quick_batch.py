@@ -17,7 +17,7 @@ from sqlalchemy import select
 from openpyxl import Workbook, load_workbook
 from pydantic import Field
 from .common import envelope, fail, audit
-from .db import get_db
+from .db import get_db, table
 from .security import current_user, writer
 from .quick import qt, owned, store
 from .quick_models import Model, Run
@@ -198,9 +198,14 @@ def confirm(body:Confirm,request:Request,db=Depends(get_db),user=Depends(writer)
     existing=db.execute(select(t.c.experiment_date,t.c.daily_no).where(owned(t,user))).mappings().all()
     used={(str(x['experiment_date']),x['daily_no']) for x in existing}
     if 'external_experiment_id' in t.c:
-        saved={x[0] for x in db.execute(select(t.c.external_experiment_id).where(owned(t,user),t.c.external_experiment_id.is_not(None)))}
+        # Archived runs keep their rows but leave the active namespace, so a
+        # re-import of the same experiment IDs can proceed after the user
+        # archives (rather than deletes) the earlier records.
+        saved={x[0] for x in db.execute(select(t.c.external_experiment_id)
+              .join(table('processes'),table('processes').c.process_id==t.c.process_id)
+              .where(owned(t,user),table('processes').c.archived_at.is_(None),t.c.external_experiment_id.is_not(None)))}
         repeated=[i for i in identifiers if i in saved]
-        if repeated:fail(409,'实验ID 已存在：'+', '.join(repeated[:5])+'；请在 Excel 中修改后重试')
+        if repeated:fail(409,'实验ID 已存在：'+', '.join(repeated[:5])+'；请先在记录中删除或归档对应记录后重试')
     next_no={}
     ids=[]
     for row in body.rows:
