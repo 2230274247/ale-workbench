@@ -1,6 +1,15 @@
 # ALE 工作台开发进度
 
 
+## 2026-11-13 快录记录支持删除与归档（批量 + 单条）
+- 用户反馈：数据集中心批量导入 `实验参数记录_中微比赛2026.11.1.xlsx` 无法入库，需要「批量删除、单个删除记录的按钮（前端后端数据库都删，或删除改为存档）」。
+- 只读排查：批量入库 `/quick/batch/confirm` 对已存在的 `external_experiment_id` 一律 `409 实验ID 已存在`（`quick_batch.py` 原实现扫全部 `quick_runs`，不含归档过滤），而此前快录没有任何删除/归档入口，用户无法清掉已导入记录再重导。
+- 后端 `backend/app/quick.py`：新增 `set_archived()`（软删除=归档，落在背靠的 `processes.archived_at`，保留全部行/修订/原件，可恢复）与 `delete_run()`（硬删除，删 `quick_results/quick_steps/quick_revisions/quick_imports/quick_runs/processes` 共 6 类行，不级联科研历史；起始段被后续记录承接时 409 拒绝）；新增端点 `POST /quick/runs/{id}/archive`、`/restore`、`DELETE /quick/runs/{id}`、`POST /quick/runs/batch-archive`、`/batch-delete`（请求事务整批回滚，批量原子）。`present()` 增加 `archived` 字段，`selection()` 默认过滤 `archived_at` 且支持 `?archived=yes` 查看已归档。
+- 后端 `backend/app/quick_batch.py`：重复实验ID 检查改为 join `processes` 且只统计 `archived_at IS NULL` 的行，错误提示改为「请先在记录中删除或归档对应记录后重试」——归档后即可用同一实验ID 重新导入。
+- 前端 `frontend/src/views/QuickDatasetView.vue`：筛选区新增「记录状态（未归档/已归档）」；记录表新增「操作」列（选择 + 查看 + 归档/恢复 + 删除），顶部新增全选/归档所选/删除所选批量条；删除用 Element Plus 确认框。`frontend/src/views/QuickRecordView.vue`：已保存记录区新增「归档/恢复此记录」「删除此记录」按钮，删除后回到新建页。
+- 验证（证据）：新增 `backend/tests/test_quick_delete_archive.py` 7 个用例覆盖归档隐藏/恢复、删除清空全部行与进程、连续序列起始段删除被拒、批量归档/删除、批量原子回滚、跨账户 403/404、归档后同一实验ID 可重导 → 独立 `ale_workbench_test` 库 `pytest -q` **7 passed**；回归 `pytest tests/test_quick_v22.py tests/test_quick_sources.py -q` → **24 passed**；前端 `vue-tsc --noEmit` 通过。
+- 遗留：本机 `argon2` 在并行跑测试时偶发 `Memory allocation error`（发生在测试账户建哈希阶段，与本次改动无关），串行重跑即稳定通过；未对生产库做任何写入或清理，正式账户验收需用户在实际页面确认。
+
 ## 2026-11-11 阶段 10 仓库整理与 GitHub 托管
 - 新建 `.gitignore` 独立规则：排除 `.env / .appcreds / .dbcreds / .setup-code / .ai-master-key`、`mysql_data/`、`mysql-server/`、`storage*/`、`backups/`、`reports/`、`logs*/`、`node_modules/`、`frontend/dist/`、虚拟环境、`.claude/`、`.workbuddy/`；首次提交 278 文件 / 120502 行，暂存扫描无明文密钥。
 - 新增 `README.md`（功能、技术栈、目录、七步上手、配置表、测试、安全边界）、`docs/配置与部署.md`（环境变量、凭据格式、建库与迁移顺序、端口、手机访问、故障表、备份、升级、提交自检）、`backend/.env.example`、`database/.dbcreds.example`、`database/.appcreds.example`；`vite.config.ts` 开发代理 8000→8001 与启动器默认端口对齐。
