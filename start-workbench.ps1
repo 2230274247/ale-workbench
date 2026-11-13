@@ -6,13 +6,28 @@ Set-Location $projectRoot
 $runtimePath = Join-Path $projectRoot 'backend\.runtime'
 New-Item -ItemType Directory -Force $runtimePath | Out-Null
 $pythonPath = Join-Path $projectRoot 'backend\.venv-win\Scripts\python.exe'
-$expectedVersion = '1.8.0'
+$expectedVersion = '1.9.0'
 $statePath = Join-Path $runtimePath "server-$Port.json"
 $baseUrl = "http://127.0.0.1:$Port"
 
 function Get-Listeners {
     # Do not treat an unavailable TCP inspection API as a free port.
-    @(Get-NetTCPConnection -State Listen -ErrorAction Stop | Where-Object { $_.LocalPort -eq $Port })
+    # Python 3.14 (uvicorn) reports its listening socket with an empty State here,
+    # so -State Listen silently misses it. Match by port and keep the listening
+    # side only: State Listen/Bound, or an empty State with no remote peer
+    # (RemotePort 0); an in-flight connection always has a remote port.
+    # A vacant port legitimately returns no rows (NotFound); any other failure
+    # must surface instead of being mistaken for a free port.
+    try {
+        $rows = @(Get-NetTCPConnection -LocalPort $Port -ErrorAction Stop)
+    } catch {
+        if ($_.FullyQualifiedErrorId -like 'CmdletizationQuery_NotFound*') { return @() }
+        throw
+    }
+    @($rows | Where-Object {
+        $s = [string]$_.State
+        ($s -in 'Listen','Bound') -or ($s -eq '' -and [int]$_.RemotePort -eq 0)
+    })
 }
 function Get-BackendFingerprint {
     # Only public source/build inputs; never read .env, keys, data or uploads.

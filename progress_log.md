@@ -1,5 +1,65 @@
 # ALE 工作台开发进度
 
+## 2026-11-13 修复批量导入因负均匀性导致整批失败
+
+**问题**：导入 `实验参数记录_中微比赛2026.11.1.xlsx`（278 行）预览正常，但「确认入库」报错、数据未入库。
+
+**根因**：`Run` 模型 `uniformity_pct`（均匀性/%）约束 `ge=0`，而该表有 4 行「膜厚增加（负减薄）」数据均匀性为负（-152.8 ~ -9021.8，Excel 第 89/103/104/105 行，材料 Al2O3、日期 2026.5.14），`Run.model_validate` 抛 ValidationError，整批单事务回滚。preview 不校验该约束，故预览正常、确认才失败。
+
+**修改文件**：
+- `backend/app/quick_models.py`：`uniformity_pct` 的 `ge=0` 放宽为 `ge=-100000000`（与 `reported_epc` 一致，允许负减薄的均匀性），保留原始负值、不擅自改写；这些行数据质量为空 → 默认「待复核」。
+
+**验证**：dry-run 对该 Excel 278 行 `Run.model_validate` 全部通过（修复前 4 行失败）；重启服务后 `/health` 200。
+
+**遗留问题**：负均匀性为原始数据异常值（膜厚增加场景），系统保留负值并标记待复核，未在预览阶段额外告警；真实入库仍需用户核对后确认。
+
+## 2026-11-13 修复桌面启动脚本无法识别 Python 3.14 uvicorn 监听端口
+
+**问题**：`start-workbench.ps1` 启动报 `Port 8001 has an unrecognized listener`（第 67 行 throw），实际 uvicorn 已就绪（HTTP 200）。
+
+**根因**：`Get-Listeners` 用 `Get-NetTCPConnection -State Listen` 过滤监听端口，但 Python 3.14 的 uvicorn 监听 socket 在 Windows TCP 表中 State 为空（非 `Listen`），导致查不到监听、脚本误判端口状态。
+
+**修改文件**：
+- `start-workbench.ps1`：`Get-Listeners` 改为 `Get-NetTCPConnection -LocalPort $Port`（不按 State 过滤），仅保留监听端——State 为 `Listen`/`Bound`，或 State 为空且 `RemotePort=0`（据此排除有对端的在途连接）；端口空闲时 `-LocalPort` 抛 `CmdletizationQuery_NotFound*`，用 try/catch 返回空数组，其余异常仍抛出（保持 fail-closed）。
+
+**验证**：①启动 uvicorn 就绪后，新逻辑返回 `count=1`（唯一 `127.0.0.1`、State 空、RemotePort=0、单一 PID），`Established` 连接被正确过滤，证据：`Get-NetTCPConnection -LocalPort 8001` 显示 `Local=127.0.0.1:8001 Remote=0.0.0.0:0 State=[]`（监听）+ `Remote=127.0.0.1:58014 State=[Established]`（在途连接）。②端到端运行 `start-workbench.ps1` 成功：backend 启动、`server-8001.json` 正确记录（version 1.9.0、launcher redirector PID→base Python PID 链路正确）、`/health` 返回 200。
+
+**遗留问题**：修复落在主工作副本 `H:\ALE_AI\start-workbench.ps1`（1.9.0 版本，含未推送的版本号升级），未走 PR；worktree 副本为旧版 1.8.0。
+
+
+## 2026-11-13 批量导入：日期自动规范化 + 新材料审核入库 + 记录表每页条数
+用户反馈两份需求：①批量导入上传的原表里日期写成 `2026.8.24`、材料 `ZnO`/`HfO2` 不在材料目录，预览整行报错，希望后端自动优化日期格式、把缺失材料自动添加并最后审核；②「记录与结果」表太长，希望加每页条数下拉（10/20/50/100，默认 10）。
+
+**修改文件**：
+- `backend/app/quick_batch.py`：`_date()` 改为自动规范化日期——接受 `datetime/date`、`YYYY-MM-DD`（含带时间）、`YYYY.M.D`、`YYYY/M/D`、`YYYY-M-D`、`YYYY年M月D日`，无法解析才报错；`build_row()` 签名加 `new_materials`，材料不在目录时不再报错，而是预生成 `material_id` 并给该行打 `_material_name` 标记；`preview` 返回 `new_materials`（去重、按出现顺序）供审核；`confirm` 在同一请求事务内先幂等插入新材料（`quick_materials`，精确按名称匹配、不推断化学身份），再建 Run，响应新增 `created_materials`。预览仍不写库，SHA-256 指纹覆盖新增字段。`MAX_ROWS` 由 200 提升为 10000 作为稳定性兜底（25 MiB 单工作簿不会触及，仅防护病态超大文件与确认时单事务过大）。
+- `backend/app/quick.py`：`GET /quick/runs` 增加 `size:int=Query(10,ge=1,le=100)`，默认每页 10 条。
+- `frontend/src/views/QuickDatasetView.vue`：记录表分页条加「每页 10/20/50/100」下拉（默认 10），分页数学改用 `totalPages`；批量导入文案更新；预览新增「将自动新增材料：…」提示，材料列显示 `_material_name`；确认入库提示新增材料名。
+- `frontend/src/mobile/MobileDatasetView.vue`：移动端预览同样显示将新增材料、材料列显示 `_material_name`、确认提示新增材料名。
+- `frontend/src/views/QuickRecordView.vue`：「继续/历史」选择器显式 `size=100`，避免因默认改 10 而只看到最近 10 条。
+- `frontend/src/quick/quick.css`：新增 `.quick-page-size` 行内下拉样式。
+- `backend/tests/test_quick_v22.py`：新增 `test_stage3_batch_import_normalizes_dates_and_auto_creates_materials`（点分日期 `2026.8.24` + 新材料 `ZnO` → 预览无错、`new_materials=['ZnO']`、日期归一 `2026-08-24`，确认后 `created_materials=['ZnO']` 且材料目录可查到、Run 回读 `material_name='ZnO'`）。
+- `docs/ale_v2_2/04_excel_mapping_contract.md`：批量导入合同同步「日期自动规范化、材料不在目录先列 `new_materials` 审核、确认入库自动创建」。
+
+**验证**：
+- 纯函数离线核对（当前工作树无 venv/MySQL，不能跑 pytest）：`_date` 对 `2026.8.24/2026.1.22/2026-8-24/2026/8/24/2026年8月24日/2026-03-06 00:00:00/datetime/date` 均正确归一为 `YYYY-MM-DD`，`2026.13.1`、`abc` 正确报错；`build_row` 对缺失材料生成稳定 `material_id` 且 `_material_name` 标记正确、同材料多行复用同一 id。
+- `python -c ast.parse` 对 `quick_batch.py`、`quick.py`、`test_quick_v22.py` 通过。
+
+**边界 / 未验证**：新增 pytest 用例与前端 `vue-tsc`/`npm run build` 因本工作树缺少依赖与 `*_test` 数据库未实际执行；真实浏览器与正式账户验收待用户本人双击「启动工作台.cmd」+ `Ctrl+F5` 强刷确认。材料精确按名称匹配，大小写/别名差异不会被自动合并（不推断化学身份）。行上限从硬编码 200 放宽为 10000 兜底：用户 280 行原表不再被「超过 200 行上限」截断，同时仍以 25 MiB 文件大小 + 10000 行上限 + 确认单事务三层限制保证稳定性（不无限放宽）。
+
+
+## 2026-11-11 阶段 11 P0 数据安全基线（审计 → 隔离 → 备份 → 恢复 → 升级保护）
+- 只读审计（先审计后动手，未改任何数据）：MySQL 8.4.11 / 3307，生产库 `ale_workbench` 52 表 6 视图 95 外键，迁移头 0016；实测真实数据 `processes=83`、`quick_runs=83`、`quick_revisions=89`、`users=2`、`audit_log=104`，`samples/batches/measurements/attachments/source_files=0`；原件 `storage/originals` 2 个。发现四类硬缺口：备份无恢复脚本、备份在项目内且无 SHA-256、应用侧无环境-库名护栏（`ale_app` 对生产库有 DML，忘设 `ALE_DB_NAME` 会直接写生产）、`migrate.py` 默认即对生产库执行。报告：`docs/P0_审计报告.md`。
+- 环境隔离：`backend/app/config.py` 新增 `PRODUCTION_DATABASE/TEST_DATABASE_SUFFIX`、`database_name()`（`ALE_ENVIRONMENT=testing` 且库名不以 `_test` 结尾→启动即报错；testing 默认库名 `ale_workbench_test`）与 testing 环境默认标签 `测试环境`；`backend/app/original_storage.py:originals_root()` 在测试库且未显式配置时回落到 `storage-test/originals`，避免测试上传污染生产原件。
+- 版本单一来源：新增 `backend/app/version.py`（`APP_VERSION='1.8.0'`），`main.py` 改为 `f'ALE Workbench {APP_VERSION}'`，OpenAPI title/version 与契约测试期望值不变（`test_contract.py` 通过）。
+- 迁移门禁：`database/migrate.py` 新增 `--confirm-production`，闸门按 `SELECT DATABASE()` 实际连接的 schema 判断（`ale_workbench` 且非 `--status` 时拒绝），因此 `migrate.main()` 的既有测试（重定向连接到 scratch 库）不受影响；`--status` 仍只读。
+- 备份系统：新增 `database/p0_utils.py`（客户端定位、临时 `--defaults-extra-file` 传密码、sha256、逐表精确行数、迁移台账、原件清单、孤儿检查、dump 安全扫描）与 `database/backup_db.py`：`mysqldump --single-transaction --quick --skip-lock-tables` 流式 gzip、按时间命名、默认根目录 `H:\ALE_Backups`（项目外，项目内路径需 `--allow-inside-project`）、空间预检、SHA-256、`manifest.json`（时间/库/软件版本/git commit/迁移版本/逐表行数/结构指纹/附件信息）、`originals/` 副本 + `originals.sha256` + `SHA256SUMS`、保留天数（`--keep`/`ALE_BACKUP_KEEP_DAYS`，只清 complete 且同库）、`backup.log`、失败写 `FAILED.json` 并退出 2；`--list` 列备份。每日任务安装器 `database/install_daily_backup.ps1`（未自动注册，需人工执行）。
+- 恢复机制：新增 `database/restore_db.py`：目标必须 `_test` 且非生产库（`guard_target()` 读取 `.appcreds` 中的库名一并拦截）、清单必须 complete、dump SHA-256 必须匹配、`SHA256SUMS` 全量复核、dump 内出现 `CREATE DATABASE/USE` 即拒绝（防止误指向写生产）；恢复后核对表/视图/外键数量、52 表逐表行数、7 组关键关联孤儿数、`quick_revisions` 行数与覆盖 run 数、迁移台账、`originals.sha256` 逐文件 SHA-256，并用 `ale_app` 只读授权真实查询 `quick_runs` 行数；报告写 `<备份根>\_reports\restore_*.json`，退出码 0/3/1。
+- 升级保护：新增 `database/pre_upgrade_check.py`：版本与 git、连通性、结构指纹、迁移 checksum 漂移、待应用列表、当前代码反射现有库、自动 `--reason pre_upgrade` 备份、`--rehearse` 把备份还原到 `ale_workbench_up<时间>_test` 并真实执行迁移、核对行数保持与新代码反射新结构，报告 `reports\p0\pre_upgrade_*.json/.md`，结论 `READY_FOR_MANUAL_APPROVAL / ALREADY_UP_TO_DATE / NOT_READY`；正式迁移仍需人工 `--confirm-production`。
+- 真实测试（本机 MySQL 实跑，非静态）：生产库真实备份 `H:\ALE_Backups\20261111T081035Z_ale_workbench_p0_drill`（673 行/52 表/dump 80110 B/sha256 88a5971f…），真实还原到 `ale_p0_drill_20261111_test` 后 52 表/6 视图/95 外键/673 行逐表一致、89 条 revision 覆盖 83 run、2 个原件校验通过；篡改 dump 被拒（SHA-256 mismatch）；目标=生产库/非 `_test` 均被拒；删除 1 条 revision 后 `--verify-only` 检出 `row count mismatch`（退出码 3）；不存在的库备份退出码 2 并留 `FAILED.json`；`--rehearse` 全链通过（备份→副本→迁移→行数保持→新代码反射 52 表），演练库已删；演练后复核生产库仍为 83/83/89、迁移 0016，未被写入。专项用例 `backend/tests/test_p0_data_safety.py` 13 passed；回归 `test_quick_v22`、`test_phase3_imports`、`test_migrations`(37)、`test_contract`、`test_core_product_alignment` 全通过（曾因生产迁移门禁误伤 `test_migrations` 8 例，改为按实际连接 schema 判断后恢复）。
+- 文档：新增 `docs/P0_审计报告.md`、`docs/P0_数据安全基线.md`；更新 `docs/配置与部署.md` §8 备份 / §9 升级（含回滚边界）、`README.md`（数据安全段与文档索引）、`backend/.env.example`（`ALE_BACKUP_ROOT`/`ALE_BACKUP_KEEP_DAYS`/`ALE_MYSQL_BIN`、库名说明）。
+- 遗留风险：备份与数据库同机（需人工复制到移动硬盘/云端）；附件只做“备份→校验”单向，未做“库引用→文件存在”反向全量扫描；DDL 非事务，中断后仍需人工；应用单账号 `ale_app`，隔离靠库名与代码护栏而非数据库权限；生产恢复仍需人工执行 SQL（有意不自动化）；备份未加密；未做换机还原演练。浏览器端到端本阶段未跑，未声称通过。
+- 纪律确认：未删除/重建/清空任何生产数据，未改表结构、字段含义、已应用迁移 SQL；未执行 `git commit`/`push`；仅新增脚本与文档，生产库仅被只读 dump 与备份恢复核对。
+
 
 ## 2026-11-13 快录记录支持删除与归档（批量 + 单条）
 - 用户反馈：数据集中心批量导入 `实验参数记录_中微比赛2026.11.1.xlsx` 无法入库，需要「批量删除、单个删除记录的按钮（前端后端数据库都删，或删除改为存档）」。
