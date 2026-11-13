@@ -23,7 +23,10 @@ from .quick import qt, owned, store
 from .quick_models import Model, Run
 
 router=APIRouter(prefix='/api/v1/quick/batch',tags=['V2.2 Batch import'])
-MAX_ROWS=200
+# Stability ceiling, not a data policy: a single 25 MiB workbook cannot realistically
+# exceed this, and it caps the single-transaction insert on confirm. Real record tables
+# are a few hundred rows; this limit is far above them and only guards pathological files.
+MAX_ROWS=10000
 QUALITY={'有效':'approved','待复核':'unreviewed','排除':'excluded',
          'approved':'approved','unreviewed':'unreviewed','excluded':'excluded'}
 
