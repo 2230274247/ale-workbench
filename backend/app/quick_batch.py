@@ -7,7 +7,7 @@ in the request transaction, so a single failure rolls back the whole batch.
 import hashlib
 import json
 import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from uuid import uuid4
@@ -95,18 +95,37 @@ def _range(value,label):
         return None,low,high
     return _number(text,label),None,None
 
+_DATE_NUMERIC=re.compile(r'^(\d{4})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{1,2})\s*$')
+_DATE_CN=re.compile(r'^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?\s*$')
+
 def _date(value,label):
+    """Normalize Excel/Chinese date spellings to YYYY-MM-DD; reject what cannot be parsed."""
+    if isinstance(value,datetime):return value.date().isoformat()
+    if isinstance(value,date):return value.isoformat()
     text=_text(value)
     if text is None:raise ValueError(f'{label} 不能为空')
-    if isinstance(value,date):return value.isoformat()
+    text=text.strip()
     try:return date.fromisoformat(text[:10]).isoformat()
-    except ValueError:raise ValueError(f'{label} 不是 YYYY-MM-DD：{text}')
+    except ValueError:pass
+    for pattern in (_DATE_NUMERIC,_DATE_CN):
+        match=pattern.match(text)
+        if match:
+            try:return date(int(match.group(1)),int(match.group(2)),int(match.group(3))).isoformat()
+            except ValueError:pass
+    raise ValueError(f'{label} 不是有效日期（需 YYYY-MM-DD 或 YYYY.M.D）：{text}')
 
-def build_row(record,line,materials):
-    """One spreadsheet row -> one independent Run; no inference of scientific facts."""
+def build_row(record,line,materials,new_materials):
+    """One spreadsheet row -> one independent Run; no inference of scientific facts.
+
+    Materials absent from the user's catalogue are not rejected: they are collected
+    into ``new_materials`` (name -> pre-generated material_id) for review, and only
+    persisted when the whole batch is confirmed.
+    """
     name=_text(record.get('材料'))
     if not name:raise ValueError('材料不能为空')
-    if name not in materials:raise ValueError(f'材料「{name}」不在你的材料目录中，请先在快录页创建')
+    if name not in materials:
+        materials[name]=str(uuid4())
+        new_materials[name]=materials[name]
     steps=[]
     for prefix in ('A','B','C'):
         source=_text(record.get(f'反应物{prefix}'))
@@ -148,7 +167,8 @@ def build_row(record,line,materials):
                         'use_for_model_override':override,
                         'data_nature':'real_experiment','before_origin':'unknown','after_origin':'manual',
                         'source':None}],
-            '_line':line}
+            '_line':line,
+            **({'_material_name':name} if name in new_materials else {})}
 
 @router.get('/template')
 def template(request:Request,user=Depends(current_user)):
@@ -170,6 +190,7 @@ async def preview(request:Request,file:UploadFile=File(...),db=Depends(get_db),u
     ws,header_row,mapping=_locate(workbook)
     t=qt('materials')
     materials={m['canonical_name']:m['material_id'] for m in db.execute(select(t).where(owned(t,user))).mappings()}
+    new_materials={}
     rows,errors,skipped=[],[],[]
     for i in range(header_row+1,ws.max_row+1):
         record={name:ws.cell(i,col).value for name,col in mapping.items()}
@@ -178,12 +199,13 @@ async def preview(request:Request,file:UploadFile=File(...),db=Depends(get_db),u
             skipped.append(f'第 {i} 行：无日期与材料，按汇总/说明行跳过');continue
         if len(rows)>=MAX_ROWS:
             errors.append(f'超过 {MAX_ROWS} 行上限，后续行未读取');break
-        try:rows.append(build_row(record,i,materials))
+        try:rows.append(build_row(record,i,materials,new_materials))
         except ValueError as exc:errors.append(f'第 {i} 行：{exc}')
     digest=hashlib.sha256(json.dumps(rows,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
     return envelope(request,{'filename':file.filename,'sha256':hashlib.sha256(content).hexdigest(),
                              'sheet':ws.title,'header_row':header_row,'matched_columns':len(mapping),
                              'rows':rows,'errors':errors,'skipped':skipped,
+                             'new_materials':[{'canonical_name':n,'material_id':i} for n,i in new_materials.items()],
                              'expected_sha256':digest,'row_count':len(rows)})
 
 @router.post('/confirm',status_code=201)
@@ -203,12 +225,22 @@ def confirm(body:Confirm,request:Request,db=Depends(get_db),user=Depends(writer)
         if repeated:fail(409,'实验ID 已存在：'+', '.join(repeated[:5])+'；请在 Excel 中修改后重试')
     next_no={}
     ids=[]
+    created=[]
+    mats=qt('materials')
+    known={m['canonical_name']:m['material_id'] for m in db.execute(select(mats).where(owned(mats,user))).mappings()}
     for row in body.rows:
         payload={k:v for k,v in row.items() if not k.startswith('_')}
+        name=row.get('_material_name')
+        if name:
+            if name not in known:
+                mid=str(row['material_id'])
+                db.execute(mats.insert().values(material_id=mid,owner_user_id=user['user_id'],canonical_name=name,aliases=[]))
+                known[name]=mid;created.append(name)
+            payload['material_id']=known[name]
         day=payload['experiment_date'];n=next_no.get(day,1)
         while (day,n) in used:n+=1
         used.add((day,n));next_no[day]=n+1
         payload.update(daily_no=n,idempotency_key=str(uuid4()),expected_version=None)
         ids.append(store(db,Run.model_validate(payload),user))
     audit(db,user['user_id'],'insert','process',None)
-    return envelope(request,{'run_ids':ids,'count':len(ids)})
+    return envelope(request,{'run_ids':ids,'count':len(ids),'created_materials':created})

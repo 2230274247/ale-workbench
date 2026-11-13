@@ -158,10 +158,9 @@ def selection(db,user,filters=None):
     return data
 
 @router.get('/runs')
-def runs(request:Request,page:int=Query(1,ge=1),db=Depends(get_db),user=Depends(current_user)):
+def runs(request:Request,page:int=Query(1,ge=1),size:int=Query(10,ge=1,le=100),db=Depends(get_db),user=Depends(current_user)):
     data=selection(db,user,dict(request.query_params))
-    size=50
-    return envelope(request,{'items':data[(page-1)*size:page*size],'total':len(data),'result_count':sum(len(r['results']) for r in data),'page':page})
+    return envelope(request,{'items':data[(page-1)*size:page*size],'total':len(data),'result_count':sum(len(r['results']) for r in data),'page':page,'size':size})
 
 @router.get('/runs/{id}')
 def get_run(id:int,request:Request,db=Depends(get_db),user=Depends(current_user)):

@@ -349,6 +349,40 @@ def test_stage3_batch_import_accepts_legacy_28col(client,world):
                           json={'rows':preview['rows'],'expected_sha256':preview['expected_sha256'],'confirm':True})
     assert confirmed.status_code==201,confirmed.text
 
+def test_stage3_batch_import_normalizes_dates_and_auto_creates_materials(client,world):
+    """Dotted dates are normalized to YYYY-MM-DD; unknown materials are previewed for review and created on confirm."""
+    from openpyxl import Workbook
+    from app.quick_dataset import HEADERS
+    h,_=world
+    w=Workbook();s=w.active;s.title='实验记录'
+    s.append(['']*33);s.append(HEADERS)
+    values={'日期':'2026.8.24','实验ID':'AUTO-001','样品ID':'S-1','材料':'ZnO','设备/腔体':'小',
+            '反应物A':'DMAC','反应物B':'HF','温度/°C':'150','压力/Pa':'28','载气/sccm':'20',
+            'A_Pulse/ms':'150','A_ΔP/Pa':'100','A_Purge/s':'50','A_Wait/s':'0',
+            'B_Pulse/ms':'200','B_ΔP/Pa':'100','B_Purge/s':'50','B_Wait/s':'0','Cycle':'100',
+            '膜厚前/nm':'28.8675','膜厚后/nm':'36.7925','均匀性/%':'1.7','结果标签':'沉积',
+            '数据质量':'有效','备注':'dotted date + new material'}
+    s.append([values.get(k) for k in HEADERS])
+    buf=BytesIO();w.save(buf)
+    response=client.post('/api/v1/quick/batch/preview',headers=h,
+                         files={'file':('auto.xlsx',buf.getvalue(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')})
+    assert response.status_code==200,response.text
+    preview=response.json()['data']
+    assert preview['row_count']==1 and preview['errors']==[]
+    assert [m['canonical_name'] for m in preview['new_materials']]==['ZnO']
+    row=preview['rows'][0]
+    assert row['experiment_date']=='2026-08-24' and row.get('_material_name')=='ZnO'
+    names=[m['canonical_name'] for m in client.get('/api/v1/quick/materials',headers=h).json()['data']]
+    assert 'ZnO' not in names
+    confirmed=client.post('/api/v1/quick/batch/confirm',headers=h,
+                          json={'rows':preview['rows'],'expected_sha256':preview['expected_sha256'],'confirm':True})
+    assert confirmed.status_code==201,confirmed.text
+    assert confirmed.json()['data']['created_materials']==['ZnO']
+    names=[m['canonical_name'] for m in client.get('/api/v1/quick/materials',headers=h).json()['data']]
+    assert 'ZnO' in names
+    run=client.get('/api/v1/quick/runs/%s' % confirmed.json()['data']['run_ids'][0],headers=h).json()['data']
+    assert run['material_name']=='ZnO'
+
 def test_stage3_batch_import_own_workbook_any_layout(client,world):
     """用户自己那份记录表直接上传：表头不在第 2 行、列顺序打乱、全角/空格差异、含汇总行都要能识别。"""
     from openpyxl import Workbook
