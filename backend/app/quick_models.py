@@ -70,7 +70,7 @@ class Result(Model):
     before_origin: Literal['measured','carried_forward','unknown']='unknown'
     after_origin: Literal['manual','excel','unknown']='manual'
     carried_from_result_id: UUID | None=None
-    uniformity_pct: Number=Field(default=None,ge=0,le=1000000)
+    uniformity_pct: Number=Field(default=None,ge=-100000000,le=1000000)
     uniformity_definition: str | None=Field(default=None,max_length=256)
     reported_epc: Number=Field(default=None,ge=-100000000,le=100000000)
     data_nature: Literal['real_experiment','synthetic','unknown_legacy']='unknown_legacy'
