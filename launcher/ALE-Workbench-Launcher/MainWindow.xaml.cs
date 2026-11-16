@@ -294,6 +294,11 @@ public partial class MainWindow : Window
             ApplyStatus(result);
             RefreshWebViewNavigation();
             RefreshFooterWithBackendVersion();
+            if (!string.IsNullOrWhiteSpace(result.TunnelUrl))
+            {
+                try { Process.Start(new ProcessStartInfo(result.TunnelUrl) { UseShellExecute = true }); }
+                catch (Exception ex) { _log.Error("打开隧道网址失败：" + ex.Message); }
+            }
         }
         catch (Exception ex)
         {
@@ -501,7 +506,7 @@ public partial class MainWindow : Window
         if (backendRunning)
         {
             var r = MessageBox.Show(
-                "后端服务仍在运行。退出启动器不会停止后端，它将在后台继续运行。\n\n确定要退出启动器吗？",
+                "退出启动器将停止工作站与公网隧道（MySQL 数据服务保持运行）。\n\n确定要退出吗？",
                 "退出启动器", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (r != MessageBoxResult.Yes) return;
         }

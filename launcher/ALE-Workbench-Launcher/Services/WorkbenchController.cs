@@ -184,6 +184,21 @@ public sealed class WorkbenchController
                     _log.Info("Backend ready.");
                     st.ProgressValue = 100;
                     st.ProgressMessage = "启动完成";
+                    if (_config.TunnelAutoStart)
+                    {
+                        st.ProgressMessage = "正在开启公网隧道…";
+                        progress.Report(st);
+                        var tunnelUrl = StartTunnel();
+                        if (!string.IsNullOrWhiteSpace(tunnelUrl))
+                        {
+                            st.TunnelUrl = tunnelUrl;
+                            _log.Info("Tunnel ready: " + tunnelUrl);
+                        }
+                        else
+                        {
+                            _log.Warn("公网隧道启动失败或未安装 cloudflared。");
+                        }
+                    }
                     progress.Report(st);
                     return st;
                 }
@@ -311,6 +326,7 @@ public sealed class WorkbenchController
                 result.Message = $"端口 {_config.BackendPort} 被其他程序占用，已拒绝停止，未结束任何进程。";
             }
             _log.Info($"Stop result: {state}");
+            StopTunnel();
             progress.Report(result);
             return result;
         }
@@ -330,6 +346,51 @@ public sealed class WorkbenchController
             return stop;
         }
         return await StartAsync(progress, ct).ConfigureAwait(false);
+    }
+
+    // ---- Tunnel ----
+
+    /// <summary>Start the temporary public tunnel (cloudflared quick tunnel), returning its URL or null.</summary>
+    public string? StartTunnel()
+    {
+        if (!_config.IsLocal) return null;
+        if (!File.Exists(_config.TunnelScript))
+        {
+            _log.Warn("隧道脚本不存在：" + _config.TunnelScript);
+            return null;
+        }
+        var json = RunScriptSync(_config.TunnelScript, $"-Action start -Port {_config.BackendPort}", out _);
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("ok", out var ok) && ok.GetBoolean() &&
+                root.TryGetProperty("url", out var url))
+                return url.GetString();
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>Stop the temporary public tunnel (idempotent).</summary>
+    public void StopTunnel()
+    {
+        if (!_config.IsLocal) return;
+        if (!File.Exists(_config.TunnelScript)) return;
+        try { RunScriptSync(_config.TunnelScript, $"-Action stop -Port {_config.BackendPort}", out _); }
+        catch (Exception ex) { _log.Warn("停止隧道失败：" + ex.Message); }
+    }
+
+    /// <summary>Best-effort stop of tunnel + backend for launcher exit; never throws.</summary>
+    public void ShutdownAll()
+    {
+        try { StopTunnel(); } catch { }
+        if (_config.IsLocal && File.Exists(_config.ControlScript))
+        {
+            try { RunScriptSync(_config.ControlScript, $"-Action stop -Port {_config.BackendPort}", out _); }
+            catch { }
+        }
     }
 
     // ---- helpers ----

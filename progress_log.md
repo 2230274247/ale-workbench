@@ -79,6 +79,34 @@
 - 验证（证据）：新增 `backend/tests/test_quick_delete_archive.py` 7 个用例覆盖归档隐藏/恢复、删除清空全部行与进程、连续序列起始段删除被拒、批量归档/删除、批量原子回滚、跨账户 403/404、归档后同一实验ID 可重导 → 独立 `ale_workbench_test` 库 `pytest -q` **7 passed**；回归 `pytest tests/test_quick_v22.py tests/test_quick_sources.py -q` → **24 passed**；前端 `vue-tsc --noEmit` 通过。
 - 遗留：本机 `argon2` 在并行跑测试时偶发 `Memory allocation error`（发生在测试账户建哈希阶段，与本次改动无关），串行重跑即稳定通过；未对生产库做任何写入或清理，正式账户验收需用户在实际页面确认。
 
+## 2026-11-12 阶段 13 桌面 launcher 自动隧道 + 退出关服务 + 启动耗时优化
+- 定位桌面壳源码：`ALE-Workbench-Launcher.exe` 是 C#/WPF WebView2 壳（net10.0-windows），源码在另一 worktree `strange-lovelace-af6201/launcher/`（untracked、未入 git），已部署 exe 即其 `publish/` 产物（大小/时间戳一致）。复制到本 worktree `launcher/` 后修改。
+- 新增 `tunnel.ps1`（与 start-workbench.ps1/ale-ctl.ps1 同层）：`-Action start|stop|status`，定位 cloudflared（PATH→WinGet→`C:\Program Files (x86)\cloudflared\cloudflared.exe`）→ 校验后端 /health → 后台 `cloudflared tunnel --url http://127.0.0.1:$Port --no-autoupdate` → 轮询 stderr 提取 `*.trycloudflare.com` → 写 `backend\.runtime\tunnel-$Port.json`（pid/url）→ 输出一行 JSON；stop 按 pid 杀进程树并清状态。首版中文注释被 Windows PowerShell 5.1 按 GBK 误读（UTF-8 无 BOM）致语法错，已改英文注释（与另两脚本一致）。
+- 改 launcher C#：`AppConfig` 加 `TunnelScript`/`TunnelAutoStart`(默认 true)；`WorkbenchController` 加 `StartTunnel/StopTunnel/ShutdownAll`，`StartAsync` 后端 ready 后自动起隧道并把 url 放进 `StatusInfo.TunnelUrl`，`StopAsync` 停隧道；`MainWindow` 启动成功用浏览器打开隧道 url，退出文案改为「停止工作站与公网隧道（MySQL 数据服务保持运行）」；`App.OnExitApproved` 先 `ShutdownAll` 再 Shutdown。版本仍 1.9.0。
+- 改 `start-workbench.ps1` 启动耗时：① `dependencies.sha256` 匹配时跳过每次的 import 探针 + `pip check`（省 3-6s）；② `Get-BackendFingerprint` 3 次降 1 次（进程已加载代码、改磁盘文件不影响运行中进程）。
+- 修复启动挂住：原 `[IO.File]::Open(...,'None')` 独占锁在脚本 ready 后 finally 的 `FileStream.Dispose()` 于 PowerShell 5.1 下挂住，脚本进程每次启动泄漏一个 powershell；Set-PSDebug 跟踪定位该行，改用命名 Mutex `ALE-Workbench-Launcher-$Port`（WaitOne(0) 抢锁，finally ReleaseMutex+Dispose）后脚本正常退出。
+- 编译部署：`dotnet publish -c Release -o publish`（单文件自包含，旧 exe 备份为 `ALE-Workbench-Launcher.exe.prev`）；部署新 exe + `tunnel.ps1` + `start-workbench.ps1` 到 `H:\ALE-Workbench\App\`。运行配置 BackendPort=8002、DbPort=3308，改动均用 `{BackendPort}` 动态传参。
+- **实测**：脚本 Parser 通过；后端冷启动 55s 就绪（health ok/db=ok）、脚本 `exit 0` 不再挂住；`tunnel.ps1 -Action start` 拿到真实 `https://…trycloudflare.com`；`stop` 停隧道+`ale-ctl stop` 停后端后 cloudflared=0、8002=0，进程清理干净。以上为真实进程/真实隧道验证，非静态测试。
+- **遗留**：MySQL 服务 `ALEWorkbenchMySQL` 是独立 Windows 服务，退出 launcher 不关闭（数据服务+加速下次启动，AGENTS.md 不许自动清理生产数据），如需彻底关闭可 `Stop-Service ALEWorkbenchMySQL`；隧道 url 公网 curl 被 auto 模式分类器拦截未验（url 由 cloudflared 生成即隧道已建立）；新 exe 完整「双击→自动隧道→浏览器弹网址→退出关服务」体验需用户实际运行确认；launcher 源码在本 worktree 仍 untracked，待提交。
+
+
+## 2026-11-12 阶段 12 临时公网一键脚本（按需开启/关闭，无需账号）
+- 用户明确实际需求为「需要时临时开公网、用完关闭」，而非常驻域名。改用 Cloudflare 快速隧道（quick tunnel，无账号/无域名，`https://xxx.trycloudflare.com`），关进程即失效。
+- 新增 `deploy/开启临时公网.ps1`：检查 cloudflared（缺失则给 winget 安装指引）→ 检查后端 `/health` → 后台启动 `cloudflared tunnel --url http://127.0.0.1:8001 --no-autoupdate` → 轮询 stderr 提取临时网址 → 复制剪贴板 + 打开浏览器 → 前台等待、Ctrl+C 关隧道。二维码未内置（本机无 qrcode 依赖，安装被安全策略拦截），暂用剪贴板+浏览器代替。
+- 改 `backend/app/security.py` `allowed_origin()`：放行 `*.trycloudflare.com` 临时隧道 Origin（临时网址每次变，无法靠 ALLOWED_ORIGINS 静态白名单；SameSite=strict 已阻止跨站带 Cookie，此放行仅针对 Cloudflare 快速隧道子域）。
+- 更新 `docs/公网访问与手机App.md`：新增第 0 节「临时开启/关闭（日常推荐）」；说明临时网址每次变、Capacitor APK 写死网址不适用，手机用浏览器/主屏幕。
+- **遗留与未验证**：本机 cloudflared 未装（winget 安装被 auto 模式安全策略拦截，安装命令已写入脚本指引）；后端当前未运行（8001 未监听，MySQL 3307 正常），脚本与隧道未端到端实测；`security.py` 改动需合并到主 checkout（`H:\ALE_AI`）并重启后端后生效。以上未以静态/隔离测试冒充正式验收。
+
+
+## 2026-11-12 阶段 11 公网访问与原生 App 壳（方案落地，待真机验证）
+- 用户选定「公网随时访问 + Capacitor 原生 App」。核实现有 `/m` 已是响应式 PWA，数据同步天然成立（手机/电脑同后端同库），缺口仅为「手机连得上」；选 Cloudflare Tunnel 出公网，后端继续只听 127.0.0.1，不改启动脚本监听校验、不开公网端口、不暴露数据库 3307。
+- 新增 `docs/公网访问与手机App.md`：数据同步原理、三步落地（`backend/.env` → cloudflared 隧道 → Capacitor 打包）、安全清单、已知限制（登录限流按 `client.host=127.0.0.1` 计，隧道后多人共用一个 10 次/分桶）。
+- 新增 `deploy/cloudflared/config.yml.example`（命名隧道 ingress 模板，service 指向 http://127.0.0.1:8001）。
+- 新增 `mobile-app/` Capacitor 壳工程：`package.json`（@capacitor 8.6.0 + `typescript`，`.ts` 配置需本地装 TS，首跑曾报缺 TS 已补）、`capacitor.config.ts`（server.url 指向公网域名加载 /m，后端/前端业务代码零改动）、`README.md`、`.gitignore`。
+- 更新 `backend/.env.example`（`ALE_ALLOWED_ORIGINS` 说明其为刷新/登出 Origin 校验、公网必填，否则约 1 小时掉线）、`README.md`（文档索引与目录树）。
+- **遗留与未验证**：`npx cap add android` 已在本机成功生成 `android/` 平台（证实 config 被 Capacitor 8.6 接受；`cap sync` 因缺 `../frontend/dist` 未跑，属预期，见 README 步骤 3）；APK 未出（本机无 Android SDK，需在装 Android Studio 的机器执行 gradlew assembleDebug）；cloudflared 未安装、隧道与域名未创建；`ALE_COOKIE_SECURE=true` 与 Origin 校验未在真实 HTTPS 下实测；App 未真机安装。以上均依赖用户侧 Cloudflare 账号/域名与 Android Studio，属待办，未以静态/隔离测试冒充正式验收。
+
+
 ## 2026-11-11 阶段 10 仓库整理与 GitHub 托管
 - 新建 `.gitignore` 独立规则：排除 `.env / .appcreds / .dbcreds / .setup-code / .ai-master-key`、`mysql_data/`、`mysql-server/`、`storage*/`、`backups/`、`reports/`、`logs*/`、`node_modules/`、`frontend/dist/`、虚拟环境、`.claude/`、`.workbuddy/`；首次提交 278 文件 / 120502 行，暂存扫描无明文密钥。
 - 新增 `README.md`（功能、技术栈、目录、七步上手、配置表、测试、安全边界）、`docs/配置与部署.md`（环境变量、凭据格式、建库与迁移顺序、端口、手机访问、故障表、备份、升级、提交自检）、`backend/.env.example`、`database/.dbcreds.example`、`database/.appcreds.example`；`vite.config.ts` 开发代理 8000→8001 与启动器默认端口对齐。

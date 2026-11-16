@@ -1,0 +1,4 @@
+# .NET build artifacts — not tracked.
+bin/
+obj/
+publish/

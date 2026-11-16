@@ -27,4 +27,6 @@ public sealed class StatusInfo
     public double ProgressValue { get; set; } = -1;
     /// <summary>Human-readable step label reported while starting.</summary>
     public string ProgressMessage { get; set; } = "";
+    /// <summary>Temporary public tunnel URL (https://*.trycloudflare.com), empty when not started.</summary>
+    public string TunnelUrl { get; set; } = "";
 }

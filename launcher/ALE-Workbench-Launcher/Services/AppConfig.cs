@@ -15,6 +15,7 @@ public sealed class AppConfig
     public bool AutoStartOnLaunch { get; set; } = true;
     public bool OpenBrowserAfterStart { get; set; } = true;
     public bool MinimizeToTrayOnClose { get; set; } = true;
+    public bool TunnelAutoStart { get; set; } = true;
 
     public bool IsLocal => Mode != "remote";
 
@@ -35,6 +36,7 @@ public sealed class AppConfig
     public string StartScript => Path.Combine(ProjectRoot, "start-workbench.ps1");
     public string ControlScript => Path.Combine(ProjectRoot, "ale-ctl.ps1");
     public string FrontendIndex => Path.Combine(ProjectRoot, "frontend", "dist", "index.html");
+    public string TunnelScript => Path.Combine(ProjectRoot, "tunnel.ps1");
 
     public bool IsLocalProjectValid =>
         !IsLocal || (!string.IsNullOrWhiteSpace(ProjectRoot) && File.Exists(StartScript) && File.Exists(ControlScript));

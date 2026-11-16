@@ -115,6 +115,16 @@ public partial class App : System.Windows.Application
 
     private void OnExitApproved()
     {
+        _log.Info("退出前停止工作站与隧道…");
+        try
+        {
+            var controller = new WorkbenchController(_config, _log);
+            controller.ShutdownAll();
+        }
+        catch (Exception ex)
+        {
+            _log.Error("停止服务失败：" + ex.Message);
+        }
         _log.Info("Launcher exited.");
         _tray?.Dispose();
         Shutdown();

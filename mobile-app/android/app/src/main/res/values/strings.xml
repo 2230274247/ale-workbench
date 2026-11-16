@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ALE 实验快录</string>
+    <string name="title_activity_main">ALE 实验快录</string>
+    <string name="package_name">com.ale.workbench</string>
+    <string name="custom_url_scheme">com.ale.workbench</string>
+</resources>

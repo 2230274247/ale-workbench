@@ -27,6 +27,15 @@ function Get-TcpListenEndpoints {
     @([Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() |
         Where-Object { $_.Port -eq $Port })
 }
+function Write-ProgressStep([int]$Value, [string]$Message) {
+    # Lightweight, crash-safe progress feed consumed by the desktop launcher to
+    # render a live step bar. Never logs secrets; a write failure must not abort startup.
+    try {
+        $p = Join-Path $runtimePath "server-$Port.progress.json"
+        [ordered]@{ progress = $Value; message = $Message; at = [DateTime]::UtcNow.ToString('o') } |
+            ConvertTo-Json -Compress | Set-Content -LiteralPath $p -Encoding UTF8
+    } catch { }
+}
 function Get-Listeners {
     # Windows can expose a live Python socket with an empty or Closed CIM State.
     # Cross-check remote-less rows against the OS listener endpoint API instead
@@ -160,7 +169,7 @@ function Get-ManualAdvice {
 function Wait-ForBackend($ProcessId) {
     if (!$Wait) { return }
     # A foreground preview must not keep the launcher lock for the server lifetime.
-    if ($script:launchLock) { $script:launchLock.Dispose(); $script:launchLock = $null }
+    if ($script:launchMutex) { $script:launchMutex.ReleaseMutex(); $script:launchMutex.Dispose(); $script:launchMutex = $null }
     Write-Output "Backend PID=$ProcessId is running; press Ctrl+C to leave this foreground launcher."
     Wait-Process -Id $ProcessId -ErrorAction SilentlyContinue
 }
@@ -342,11 +351,13 @@ function Stop-VerifiedListener($Identity) {
     throw "Port $Port is still occupied. No additional process was stopped."
 }
 
-# Serialize launchers for this project/port; the OS releases the lock on interruption.
-$launchLock = $null
+# Serialize launchers for this project/port with a named mutex (kernel object;
+# avoids a PowerShell 5.1 FileStream.Dispose hang on the lock file).
+$launchMutex = New-Object System.Threading.Mutex($false, "ALE-Workbench-Launcher-$Port")
+try { $acquired = $launchMutex.WaitOne(0) } catch { $acquired = $true }
+if (-not $acquired) { $launchMutex.Dispose(); throw "Another launcher may be active for port $Port. Retry after it finishes." }
 try {
-    try { $launchLock = [IO.File]::Open((Join-Path $runtimePath "launcher-$Port.lock"), 'OpenOrCreate', 'ReadWrite', 'None') }
-    catch { throw "Another launcher may be active for port $Port. Retry after it finishes." }
+    Write-ProgressStep 4 '正在准备启动环境…'
     # Identify any listener before installing dependencies or changing the environment.
     $existingIdentity = $null
     if (@(Get-Listeners).Count) {
@@ -354,6 +365,7 @@ try {
         try { $null = Get-TrustedRecord $existingIdentity }
         catch { $null = Get-InterruptedRecord $existingIdentity }
     }
+    Write-ProgressStep 8 '正在检查端口占用…'
     if (!(Test-Path $pythonPath)) {
         if (Get-Command py.exe -ErrorAction SilentlyContinue) {
             & py.exe -3 -m venv (Join-Path $projectRoot 'backend\.venv-win')
@@ -366,27 +378,26 @@ try {
     $forceRestart = [bool]$Install
     $requirementsPath = Join-Path $projectRoot 'backend\requirements.txt'
     $markerPath = Join-Path $runtimePath 'dependencies.sha256'
+    Write-ProgressStep 14 '正在检查依赖是否就绪…'
     $requirementsHash = (Get-FileHash -Algorithm SHA256 $requirementsPath).Hash
     $installedHash = ''
     if (Test-Path $markerPath) { $installedHash = (Get-Content -Raw $markerPath).Trim() }
     $probe = 'import fastapi, pydantic, uvicorn, sqlalchemy, pymysql, jwt, argon2, dotenv, yaml, email_validator, httpx, pytest, jsonschema, openpyxl, defusedxml, multipart'
-    if (!$Install -and $installedHash -eq $requirementsHash) {
-        & $pythonPath -c $probe 2>$null
-        if ($LASTEXITCODE -ne 0) { $Install = $true }
-        if (!$Install) {
-            & $pythonPath -m pip check
-            if ($LASTEXITCODE -ne 0) { $Install = $true }
-        }
-    } else { $Install = $true }
+    # 依赖就绪标记匹配 → 信任上一轮已验证的依赖，跳过 import 探针与 pip check（每次启动省 3-6s）。
+    # marker 仅在 install 成功且 requirements 未变时写入；不匹配才重新校验/安装。
+    if ($Install -or $installedHash -ne $requirementsHash) { $Install = $true }
     if ($Install) {
         $forceRestart = $true
         # Invalidate before installation: an interrupted attempt must retry next launch.
         Set-Content -Path $markerPath -Value 'pending' -Encoding ASCII
         Write-Output 'Installing compatible prebuilt Python packages. Interrupted installs retry automatically.'
+        Write-ProgressStep 20 '正在更新 pip…'
         & $pythonPath -m pip install --upgrade '--only-binary=:all:' pip
         if ($LASTEXITCODE -ne 0) { throw 'Could not update pip. Check network access and run this launcher again.' }
+        Write-ProgressStep 30 '正在安装依赖（首次启动可能需要几分钟，请耐心等待）…'
         & $pythonPath -m pip install --upgrade '--only-binary=:all:' -r $requirementsPath
         if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed. No C++ compilation was attempted. Rerun this launcher to retry.' }
+        Write-ProgressStep 52 '依赖安装完成，正在校验…'
         & $pythonPath -m pip check
         if ($LASTEXITCODE -ne 0) { throw 'Python dependency consistency check failed.' }
         & $pythonPath -c $probe
@@ -398,6 +409,7 @@ try {
     $env:ALE_DB_PORT = "$DbPort"
     # Read-only current-code readiness: DB connection + required tables/columns.
     # Do not print exception text (it can contain connection details); never migrate here.
+    Write-ProgressStep 58 '正在校验数据库连接与表结构…'
     $readinessProbe = @'
 import sys
 try:
@@ -410,6 +422,7 @@ except Exception:
     try { & $pythonPath -c $readinessProbe 2>$null; $readyExit = $LASTEXITCODE }
     finally { Pop-Location }
     if ($readyExit -ne 0) { throw 'Database/schema readiness failed. Check MySQL 3307 and migration status using the documented backup procedure. No backend was stopped; no migration was run.' }
+    Write-ProgressStep 62 '正在校验程序完整性…'
     $fingerprint = Get-BackendFingerprint
     if ($existingIdentity) {
         $state = Get-TrustedRecord $existingIdentity
@@ -417,8 +430,8 @@ except Exception:
         if (!$forceRestart -and $sameBuild -and (Test-HttpReady)) {
             $currentIdentity = Get-ProjectListener
             $null = Get-TrustedRecord $currentIdentity
-            if ($currentIdentity.Id -ne $existingIdentity.Id -or $currentIdentity.CreatedUtc -cne $existingIdentity.CreatedUtc -or
-                (Get-BackendFingerprint) -cne $fingerprint) { throw 'Backend/source changed during reuse checks. Rerun launcher.' }
+            if ($currentIdentity.Id -ne $existingIdentity.Id -or $currentIdentity.CreatedUtc -cne $existingIdentity.CreatedUtc -or (Get-BackendFingerprint) -cne $fingerprint) { throw 'Backend/source changed during reuse checks. Rerun launcher.' }
+            Write-ProgressStep 100 '正在复用已运行的服务…'
             Write-Output "Reusing verified $expectedVersion backend PID=$($existingIdentity.Id), created=$($existingIdentity.CreatedUtc)."
             if (!$NoBrowser) { Start-Process "$baseUrl/login" }
             Wait-ForBackend $existingIdentity.Id
@@ -429,7 +442,8 @@ except Exception:
     }
     if (@(Get-Listeners).Count) { throw "Port $Port was occupied during startup. No process was stopped." }
     $launchNonce = [Guid]::NewGuid().ToString('D')
-    $process = Start-Process -FilePath $pythonPath -ArgumentList @('-m','uvicorn','app.main:app','--app-dir',('"' + $backendRoot + '"'),'--host','127.0.0.1','--port',"$Port",'--no-access-log') -WorkingDirectory $backendRoot -RedirectStandardOutput (Join-Path $runtimePath "server-$Port.stdout.log") -RedirectStandardError (Join-Path $runtimePath "server-$Port.stderr.log") -PassThru
+    Write-ProgressStep 68 '正在启动后端服务…'
+    $process = Start-Process -FilePath $pythonPath -ArgumentList @('-m','uvicorn','app.main:app','--app-dir',('"' + $backendRoot + '"'),'--host','127.0.0.1','--port',"$Port",'--no-access-log') -WorkingDirectory $backendRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $runtimePath "server-$Port.stdout.log") -RedirectStandardError (Join-Path $runtimePath "server-$Port.stderr.log") -PassThru
     $null = $process.Handle
     $launchedCreatedUtc = $process.StartTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.ffffffZ')
     $process.Id | Set-Content (Join-Path $runtimePath 'server.pid')
@@ -438,6 +452,7 @@ except Exception:
         Start-Sleep -Seconds 1
         $process.Refresh()
         if ($process.HasExited) { throw "Service exited. See $runtimePath\server-$Port.stderr.log" }
+        Write-ProgressStep (68 + [int](($attempt + 1) * 24 / 30)) '正在等待服务就绪…'
         if (Test-HttpReady) { $healthy = $true; break }
     }
     if (!$healthy) { throw "Service did not pass version/routes/health checks. See $runtimePath\server-$Port.stderr.log. No ready fingerprint was recorded." }
@@ -446,15 +461,20 @@ except Exception:
         throw 'Ready listener is not the process just launched. No ready fingerprint was recorded.'
     }
     if ((Get-BackendFingerprint) -cne $fingerprint) { throw 'Source/build changed during startup. Rerun launcher; no ready fingerprint was recorded.' }
+    Write-ProgressStep 94 '正在完成启动并记录状态…'
     $record = [ordered]@{ schema=2; launchNonce=$launchNonce; projectRoot=$projectRoot; backendRoot=$backendRoot; executable=$newIdentity.Executable; commandLine=$newIdentity.CommandLine; launcherPid=$newIdentity.LauncherId; launcherCreatedUtc=$newIdentity.LauncherCreatedUtc; launcherExecutable=$newIdentity.LauncherExecutable; launcherCommandLine=$newIdentity.LauncherCommandLine; port=$Port; pid=$newIdentity.Id; createdUtc=$newIdentity.CreatedUtc; version=$expectedVersion; fingerprint=$fingerprint; verifiedUtc=[DateTime]::UtcNow.ToString('o') }
     $tempState = "$statePath.$launchNonce.tmp"
     $record | ConvertTo-Json | Set-Content -LiteralPath $tempState -Encoding UTF8
     Save-StateRecord $tempState $statePath
+    Write-ProgressStep 100 '启动完成'
     Write-Output "Verified $expectedVersion backend PID=$($newIdentity.Id), created=$($newIdentity.CreatedUtc)."
     Write-Output "Workbench: $baseUrl/login"
     Write-Output 'First visit: use backend\.setup-code to create your administrator. No default password.'
     if (!$NoBrowser) { Start-Process "$baseUrl/login" }
     Wait-ForBackend $newIdentity.Id
 } finally {
-    if ($launchLock) { $launchLock.Dispose() }
+    if ($launchMutex) {
+        try { $launchMutex.ReleaseMutex() } catch {}
+        try { $launchMutex.Dispose() } catch {}
+    }
 }
