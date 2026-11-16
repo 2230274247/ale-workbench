@@ -31,7 +31,9 @@ Assert (@(Get-Listeners).Count -eq 1) 'empty State listener retained; establishe
 $script:rows = @(Row 'Closed' 0; Row 'TimeWait' 53000)
 Assert (@(Get-Listeners).Count -eq 1) 'OS-confirmed listener retained despite Closed CIM State'
 $script:endpoints = @()
-Assert (@(Get-Listeners).Count -eq 0) 'closed socket without OS listener is excluded'
+Assert (@(Get-Listeners).Count -eq 1) 'remote-less Closed row remains occupied even when OS endpoint list is empty'
+$script:rows = @(Row $null 0; Row 'Established' 53000)
+Assert (@(Get-Listeners).Count -eq 1) 'real regression: null CIM State and empty OS endpoint list still retain owner'
 $script:queryFails = $true
 $failed = $false
 try { $null = Get-Listeners } catch { $failed = $true }

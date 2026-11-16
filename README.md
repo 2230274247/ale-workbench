@@ -22,7 +22,7 @@
 - 后端：Python 3.14、FastAPI 0.119、Pydantic 2、SQLAlchemy 2（Core 反射，无 ORM 迁移框架）、PyMySQL、PyJWT + Argon2
 - 数据库：MySQL 8.4（默认端口 `3307`，库名 `ale_workbench`）
 - 前端：Vue 3.5、Vite 7、TypeScript、Element Plus、ECharts、lucide 图标
-- 契约：OpenAPI 3.1（`api/openapi/`），版本 1.8.0
+- 契约：OpenAPI 3.1（`api/openapi/`），应用版本 1.9.0（以 `backend/app/version.py` 为准）
 
 ## 目录结构
 
@@ -105,26 +105,26 @@ backend\.venv-win\Scripts\python.exe database\migrate.py            # 应用（�
 python -c "import secrets;print(secrets.token_urlsafe(24))" > backend\.setup-code
 ```
 
-打开 `http://127.0.0.1:8001/login`，页面会进入「初始化工作空间」，填入上面这串访问码即可创建管理员。
+打开 `http://127.0.0.1:8002/login`，页面会进入「初始化工作空间」，填入上面这串访问码即可创建管理员。
 
 ### 7. 启动
 
 ```powershell
 .\启动工作台.cmd
 # 或指定端口
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-workbench.ps1 -Port 8001
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-workbench.ps1 -Port 8002
 ```
 
-默认入口 `http://127.0.0.1:8001/login`；移动版 `http://127.0.0.1:8001/m`。
+默认入口 `http://127.0.0.1:8002/login`；移动版 `http://127.0.0.1:8002/m`。
 
-> 启动器会校验监听进程身份与源码/构建指纹，端口被其他程序占用时拒绝启动而不是强杀进程。
+> 启动器显示实际代码目录、版本与 Git 提交，并检查前端源码和构建指纹；需要时先重新构建网页，再启动后端。统一入口默认 8002，可显式传 `-Port`；未知占用者仍拒绝接管或停止。请使用 `H:\ALE_AI\启动工作台.cmd` 作为主目录入口，工作树不会自动替代它。
 
 ## 前端开发
 
 ```powershell
 cd frontend
 npm ci
-npm run dev      # http://127.0.0.1:5173，/api 代理到 127.0.0.1:8001
+npm run dev      # http://127.0.0.1:5173，/api 代理到 127.0.0.1:8002
 npm run build    # 类型检查 + 产物，后端直接托管 dist
 ```
 

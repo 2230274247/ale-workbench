@@ -10,7 +10,7 @@
 # Output is one line of compact JSON.
 param(
     [ValidateSet('start','stop','status')][string]$Action = 'status',
-    [ValidateRange(1,65535)][int]$Port = 8001
+    [ValidateRange(1,65535)][int]$Port = 8002
 )
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8

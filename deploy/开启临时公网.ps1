@@ -2,7 +2,7 @@
 # 无需 Cloudflare 账号/域名。用法：
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\开启临时公网.ps1 [-Port 8001]
 param(
-  [ValidateRange(1,65535)][int]$Port = 8001
+  [ValidateRange(1,65535)][int]$Port = 8002
 )
 
 $ErrorActionPreference = 'Stop'

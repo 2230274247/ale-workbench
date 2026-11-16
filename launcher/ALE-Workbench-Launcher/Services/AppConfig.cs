@@ -8,7 +8,7 @@ public sealed class AppConfig
 {
     public string ProjectRoot { get; set; } = "";
     public string BackendHost { get; set; } = "127.0.0.1";
-    public int BackendPort { get; set; } = 8001;
+    public int BackendPort { get; set; } = 8002;
     public int DbPort { get; set; } = 3307;
     public string Mode { get; set; } = "local"; // "local" | "remote"
     public string RemoteUrl { get; set; } = "";

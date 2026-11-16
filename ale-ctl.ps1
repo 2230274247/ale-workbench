@@ -11,7 +11,7 @@
 # Output is one line of compact JSON.
 param(
     [ValidateSet('status','stop')][string]$Action = 'status',
-    [ValidateRange(1,65535)][int]$Port = 8001,
+    [ValidateRange(1,65535)][int]$Port = 8002,
     [string]$ProjectRoot = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -44,8 +44,9 @@ function Get-Listeners {
     }
     $listeners = @($rows | Where-Object {
         $row = $_
-        $matched = @($endpoints | Where-Object { $_.Address.ToString() -eq $row.LocalAddress }).Count -gt 0
-        ([string]$row.State -in 'Listen','Bound') -or ([int]$row.RemotePort -eq 0 -and $matched)
+        # Remote-less rows are occupied candidates even with a missing State.
+        # Ownership is established later from the process chain and trusted record.
+        ([string]$row.State -in 'Listen','Bound') -or [int]$row.RemotePort -eq 0
     })
     foreach ($endpoint in $endpoints) {
         if (!@($listeners | Where-Object { $_.LocalAddress -eq $endpoint.Address.ToString() }).Count) {
@@ -83,7 +84,7 @@ function Test-UvicornCommand($CommandLine) {
     return ($seenHost -and $seenPort -and $seenAppDir)
 }
 function Get-ManualAdvice {
-    'No automatic reuse or stop of an unverified process. Check the PID, creation time and --app-dir with Get-NetTCPConnection and Get-CimInstance Win32_Process. Close the known original server with Ctrl+C, or choose a different free port (for example -Port 8002). See startup instructions.'
+    'No automatic reuse or stop of an unverified process. Check the PID, creation time and --app-dir with Get-NetTCPConnection and Get-CimInstance Win32_Process. Close the known original server with Ctrl+C, or choose a different free port (for example -Port 8003). See startup instructions.'
 }
 function Get-ProjectListener {
     $listeners = @(Get-Listeners)

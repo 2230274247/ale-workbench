@@ -1,4 +1,4 @@
-﻿param([switch]$Install, [switch]$NoBrowser, [switch]$Wait, [ValidateRange(1,65535)][int]$Port = 8001, [ValidateRange(1,65535)][int]$DbPort = 3307)
+﻿param([switch]$Install, [switch]$NoBrowser, [switch]$Wait, [ValidateRange(1,65535)][int]$Port = 8002, [ValidateRange(1,65535)][int]$DbPort = 3307)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
 $backendRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'backend')).TrimEnd('\')
@@ -49,8 +49,10 @@ function Get-Listeners {
     }
     $listeners = @($rows | Where-Object {
         $row = $_
-        $matched = @($endpoints | Where-Object { $_.Address.ToString() -eq $row.LocalAddress }).Count -gt 0
-        ([string]$row.State -in 'Listen','Bound') -or ([int]$row.RemotePort -eq 0 -and $matched)
+        # A remote-less row reserves this port even when both APIs mislabel or
+        # omit the listener. Treat it as occupied, then verify its process chain
+        # and trusted record; never infer ownership merely from this socket row.
+        ([string]$row.State -in 'Listen','Bound') -or [int]$row.RemotePort -eq 0
     })
     foreach ($endpoint in $endpoints) {
         if (!@($listeners | Where-Object { $_.LocalAddress -eq $endpoint.Address.ToString() }).Count) {
@@ -164,7 +166,7 @@ function Test-UvicornCommand($CommandLine) {
     return ($seenHost -and $seenPort -and $seenAppDir)
 }
 function Get-ManualAdvice {
-    'No automatic reuse or stop of an unverified process. Check the PID, creation time and --app-dir with Get-NetTCPConnection and Get-CimInstance Win32_Process. Close the known original server with Ctrl+C, or choose a different free port (for example -Port 8002). See startup instructions.'
+    'No automatic reuse or stop of an unverified process. Check the PID, creation time and --app-dir with Get-NetTCPConnection and Get-CimInstance Win32_Process. Close the known original server with Ctrl+C, or choose a different free port (for example -Port 8003). See startup instructions.'
 }
 function Wait-ForBackend($ProcessId) {
     if (!$Wait) { return }
@@ -354,7 +356,9 @@ function Stop-VerifiedListener($Identity) {
 # Serialize launchers for this project/port with a named mutex (kernel object;
 # avoids a PowerShell 5.1 FileStream.Dispose hang on the lock file).
 $launchMutex = New-Object System.Threading.Mutex($false, "ALE-Workbench-Launcher-$Port")
-try { $acquired = $launchMutex.WaitOne(0) } catch { $acquired = $true }
+try { $acquired = $launchMutex.WaitOne(0) }
+catch [System.Threading.AbandonedMutexException] { $acquired = $true }
+catch { $launchMutex.Dispose(); throw }
 if (-not $acquired) { $launchMutex.Dispose(); throw "Another launcher may be active for port $Port. Retry after it finishes." }
 try {
     Write-ProgressStep 4 '正在准备启动环境…'
