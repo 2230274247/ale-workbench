@@ -1,6 +1,6 @@
 # ALE 工作台开发进度
 
-## 2026-11-16 统一主目录、工作树源码与启动入口（进行中）
+## 2026-11-16 统一主目录、工作树源码与启动入口（已整合并完成本机启动验证）
 
 - 用户授权保存未提交代码并推送 GitHub。主目录原始开发改动已保存为 `810e917`，在当前整合分支重放为 `8525072`；保留日期规范化、新材料审核、分页及已提交的快录删除/归档功能。
 - `start-workbench.ps1` 从 `backend/app/version.py` 读取版本，显示实际代码目录与 Git 提交；前端源码/构建双指纹不匹配时先构建再启动。监听检测结合系统监听端点与 CIM PID，保持未知进程拒绝接管；支持 NoBrowser、Wait、DbPort 和便携 Python。
@@ -9,7 +9,8 @@
 - 所有工作树分支（affectionate、strange、sharp、gifted/push-3-fixes）与本地主目录保存分支均已归入同一提交历史，主目录 main 已快进到整合版本。使用原数据库与原件，未迁移或清理生产数据。
 - 实机首次启动复现：CIM State=null 且 .NET 监听端点列表为空，但 HTTP/后端正常。最终检测改为将 RemotePort=0 行视为占用候选，再校验进程链及可信记录；新增该回归用例，离线检查 14 passed。自动审批拒绝停止本轮预览遗留 PID43280，8001 保留，统一入口及相关默认端口改为 8002；不伪造或放宽可信记录。
 - 主目录独立 ale_workbench_test 与独立 storage-test/merge-20261116/originals：pytest test_quick_v22.py、test_quick_delete_archive.py、test_epc.py 共 38 passed；test_p0_data_safety.py 13 passed，含测试库备份/恢复演练。两组各有 Starlette/AnyIO 弃用提示。正式账户与桌面安装包/App 构建未验收。
-- 8002 实际新启动、复用与 GitHub 推送结果待补。
+- 实际 8002 新启动 Verified 1.9.0，PID35816、创建时间 2026-11-16T02:11:47.952776Z；再次运行主目录启动器 -NoBrowser 成功 Reusing 同一 PID，schema=2/项目根/创建时间匹配；health/database=ok，归档/批量删除/EPC 路由存在。浏览器登录页正常，未登录刷新 401 为预期。test_contract.py 另有 2 passed，后端三组共 53 passed。默认入口统一为 http://127.0.0.1:8002/login。
+- 详细命令、提交映射、实机证据及未验收边界见 `docs/统一版本与启动验证_2026-11-16.md`。GitHub 推送在最终文档提交后执行，远端同步结果以会话最终核对为准。
 
 
 ## 2026-11-13 修复批量导入因负均匀性导致整批失败
