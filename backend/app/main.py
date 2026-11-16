@@ -12,13 +12,14 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError,SQLAlchemyError
 import yaml
 from .config import ROOT,jwt_secret
+from .version import APP_VERSION
 from .db import engine, MigrationRequired
 from .common import envelope
-from . import auth,users,records,dashboard,experiments,transitions,imports,measurement_management,chemistry,step_templates,ai,scientificanalysis,lifecycle,workflow,quick,quick_dataset,quick_batch
+from . import auth,users,records,dashboard,experiments,transitions,imports,measurement_management,chemistry,step_templates,ai,scientificanalysis,lifecycle,workflow,quick,quick_dataset,quick_batch,epc
 
 logger=logging.getLogger('ale.requests')
 
-app=FastAPI(title='ALE Workbench 1.8.0',version='1.8.0',docs_url='/docs',redoc_url=None,openapi_url='/openapi.json')
+app=FastAPI(title=f'ALE Workbench {APP_VERSION}',version=APP_VERSION,docs_url='/docs',redoc_url=None,openapi_url='/openapi.json')
 app.add_middleware(CORSMiddleware,allow_origin_regex=r'https?://(localhost|127\.0\.0\.1|172\.16\.10\.3)(:\d+)?',allow_credentials=True,allow_methods=['GET','POST','PUT','PATCH','DELETE'],allow_headers=['Authorization','Content-Type'])
 
 @app.middleware('http')
@@ -58,7 +59,7 @@ async def database_error(request,exc):return error(request,503,'Database is temp
 @app.exception_handler(Exception)
 async def unexpected(request,exc):return error(request,500,'Internal server error')
 
-for router in (auth.router,users.router,records.router,dashboard.router,experiments.router,transitions.router,imports.router,measurement_management.router,chemistry.router,step_templates.router,ai.router,scientificanalysis.router,lifecycle.router,workflow.router,quick.router,quick_dataset.router,quick_batch.router):app.include_router(router)
+for router in (auth.router,users.router,records.router,dashboard.router,experiments.router,transitions.router,imports.router,measurement_management.router,chemistry.router,step_templates.router,ai.router,scientificanalysis.router,lifecycle.router,workflow.router,quick.router,quick_dataset.router,quick_batch.router,epc.router):app.include_router(router)
 
 @app.get('/health')
 def health(request:Request):

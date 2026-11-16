@@ -26,6 +26,7 @@ export const router=createRouter({history:createWebHistory(),routes:[
  {path:'sample-history',component:()=>import('./views/SampleHistoryView.vue'),meta:{title:'样品科研履历'}},
  {path:'imports',component:()=>import('./views/ImportsView.vue'),meta:{title:'统一导入中心'}},
  {path:'analysis',component:()=>import('./views/AnalysisView.vue'),meta:{title:'科研分析'}},
+ {path:'epc',component:()=>import('./views/EpcPredictionView.vue'),meta:{title:'EPC 预测与可视化'}},
  {path:'measurements',component:()=>import('./views/MeasurementsView.vue'),meta:{title:'正式测量'}},
  {path:'source-files',component:()=>import('./views/SourceFilesView.vue'),meta:{title:'原始文件档案'}},
  {path:'instruments/:type',component:()=>import('./views/InstrumentsView.vue'),meta:{title:'仪器数据'}},
