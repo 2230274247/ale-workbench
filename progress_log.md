@@ -864,3 +864,83 @@ XPS真实55个XML均是Chart配置，轴Binding Energy(eV)、Counts/s明确但�
 - 最小修改 start-workbench.ps1 默认端口8000→8001，同步启动说明.md顶部当前入口；显式-Port及进程身份/可信记录保护保留。启动工作台.cmd继续转发原脚本，无业务代码、数据库迁移或原件修改。
 - 实际Windows启动默认8001成功，Verified PID13852/schema2/1.8.0；再次 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-workbench.ps1 返回0并Reusing同PID。pip check通过、PowerShell解析无错、/health数据库ok、/login HTTP200；原8000 PID23136仍在。证据startup.stdout.log/startup.stderr.log/reuse.log/verification.json/original-process-after.json均在同目录。未执行正式账户业务验收。
 - Codex从PowerShell7用Start-Process发起Windows PowerShell5.1时首次继承模块环境导致Get-FileHash不可见；验证启动时显式导入系统WindowsPowerShell Utility模块后通过。直接powershell.exe -File重复启动无需额外导入并通过，未为工具环境问题改产品脚本。
+
+## 2026-11-11 v1.0 桌面安装包（WPF + 便携 Python + MySQL 自动部署）
+- 目标：交付 `ALE-Workbench-Setup-x64.exe` 一键安装包，普通用户在干净 Windows 上无需 Python/Node/.NET SDK 即可使用；保持 WPF 仅壳、不直连 MySQL、不在客户端存数据库密码。
+- 新增/修改：`launcher/ALE-Workbench-Launcher/`（C#/.NET 10 WPF + WebView2，单实例/托盘/状态轮询/启动停止重启）；`ale-ctl.ps1`（安全 status/stop）；`stop-workbench.ps1`；`start-workbench.ps1` 新增 `-NoBrowser` 且便携 Python 优先（`python\python.exe` 回退 `backend\.venv-win`）；`launcher/deploy/deploy-mysql.ps1`（检测复用→否则内置 mysqld 初始化+建库+迁移）；`launcher/deploy/provision-python.ps1`（复制基础 CPython+覆盖 venv 依赖，排除 playwright）；`launcher/installer/ale-workbench.iss` + `build-installer.ps1`。
+- 实际验证：WPF `dotnet build` 0 警告 0 错误、自包含单文件 ~67MB、冒烟 ALIVE；启动/状态/停止端到端（healthy/database:ok/PID 记录/端口释放）；便携 Python `import app.main` 成功（含 fastapi/sqlalchemy/cryptography 等全部依赖）。证据见 `docs/v1.0-installer/TEST_REPORT.md`。
+- 未验证（诚实标注）：干净 Windows VM 一键安装、MySQL 在无库机器自动初始化全流程、WebView2 缺失自动处理、卸载保留数据实测——均因无 VM 环境未跑通，见 KNOWN_ISSUES。
+- 未 commit/push，未重置未提交修改，未上传密钥或数据库文件，未写任何客户端数据库密码。
+- 安装包最终产出 `launcher/dist/ALE-Workbench-Setup-x64.exe`（约 228 MB，SHA-256 `3303dd17c8769b724c13a38ee23eba8a0329312475a139828ab22278048698de`）。构建中修复三处：provision-python 验证 `print("OK")` 被 PowerShell 剥引号、Inno Setup AppId 非法/压缩级别、build-installer 清理缓存 `-Include`+`-LiteralPath` 静默匹配全量误删 staging。staging 逐项核对关键文件齐全且无 `.dbcreds/.appcreds/.env`。
+
+## 2026-11-11 EPC 预测与结果可视化 + v1.9.0 发布
+
+- 新增后端 `backend/app/epc.py`：`GET /api/v1/epc/results`（真实 EPC 结果 + 按材料统计 + 训练资格明细）、`/epc/calculator`（确定性 EPC = 10*(前后膜厚差)/有效循环）、`/epc/predict`（透明最小二乘，仅用 quick_dataset.eligibility 已确认可训练行；数据不足返回 insufficient_data 并说明原因，绝不伪造指标）。`main.py` 注册 router。R1 温度字段名与 R2 `temperature_r2_c` 对应，前后端一致，无密钥混入（已用字符拼接确定性比对确认）。
+- 新增前端 `frontend/src/views/EpcPredictionView.vue`（ECharts 散点 + 确定性计算器 + 透明预测表单 + 明细表），`router.ts` 注册 `/epc`，`AppShell.vue` 数据分析组新增「EPC 预测与可视化」。
+- 版本 1.8.0 → 1.9.0：`backend/app/version.py` APP_VERSION、`frontend/package.json`、`start-workbench.ps1` $expectedVersion、launcher `WorkbenchController.cs` CompatibleApiVersion、`ale-workbench.iss` MyAppVersion。
+- 端口隔离：`start-workbench.ps1` 新增 `-DbPort`（默认 3307）、`AppConfig.cs` 新增 DbPort、`WorkbenchController.cs` 透传 `-DbPort`，使生产可独立于开发占用不同 HTTP/MySQL 端口。deploy-mysql.ps1 已有 `-Port`/`-DataDir`，检测复用→否则内置 mysqld 初始化；本次补齐两处：部署前设置 `ALE_DB_HOST/ALE_DB_PORT=$Port` 使 apply_schema/migrate 连到本实例（否则自定义端口会误连 dev 3307），缺失时生成 `backend/.env`（随机 `ALE_JWT_SECRET`，幂等不覆盖，否则后端首装无法启动）。
+- 修复 `build-installer.ps1`：backend/app、requirements/pytest.ini、frontend package.json、api、database 改从 `$MainRepoRoot`(H:\ALE_AI) 打包，避免从落后于 H:\ALE_AI 的 worktree 打出缺 EPC 注册/version.py 的旧后端；launcher/deploy 仍从 worktree。
+- 测试：独立 `ale_workbench_test` 库，`tests/test_epc.py` 8 passed；回归 `tests/test_quick_v22.py` + `tests/test_contract.py` 24 passed；前端 `vue-tsc --noEmit && vite build` 通过。
+- 备份与恢复验证：`H:\ALE-Workbench-Data\backups\ale_workbench_20261111T211207.sql` 恢复至临时库 `ale_workbench_restore_verify`（重写库名避免 USE/建库指向生产），58 表、processes/quick_runs/users=83/83/2 与生产只读核对一致，临时库已删，生产未触碰。
+- 版本 1.9.0 安装包构建中（.iss 版本已同步 1.9.0）。
+- 待办：安装到 H:\ALE-Workbench\App（该目录当前不存在，实为首装）、配置生产端口 8002/3308 与数据目录 H:\ALE-Workbench-Data、恢复备份、升级后验证旧数据与新 EPC 功能、最终报告。未 commit/push。
+
+## 2026-11-12 v1.9.0 生产首装与验收
+
+- 首次安装到 `H:\ALE-Workbench\App`（此前不存在；Program Files/ProgramData 亦无，确认为首装而非升级）。静默安装 `/VERYSILENT /SUPPRESSMSGBOXES /DIR=H:\ALE-Workbench\App`，关键文件齐全，install.log 记录自动部署在 3307 冲突退出 1（预期，改手动隔离部署）。
+- 生产 MySQL 按 3308 端口部署到 `H:\ALE-Workbench-Data\mysql-data`（服务 ALEWorkbenchMySQL，绑定 127.0.0.1），与 dev 的 3307 完全隔离；数据目录长期保存，不触碰 dev 的 H:\ALE_AI\mysql_data。
+- 发现并修复真实 bug：`apply_schema.py` 在中文 Windows GBK 控制台打印 `✓`(U+2713) 触发 `UnicodeEncodeError` 崩溃——此前「干净机自动初始化全流程」从未真正跑通。deploy-mysql.ps1 部署路径补 `$env:PYTHONUTF8='1'`（已同步 worktree 与已安装副本）。
+- 恢复备份 `ale_workbench_20261111T211207.sql`（root 空密码）到 3308 成功 exit 0。验证：processes/quick_runs/users=83/83/2、58 表，经 `ale_app` 账号只读读取一致。
+- 生成 `backend/.env`（随机 ALE_JWT_SECRET）与启动器 `config.json`（BackendPort=8002、DbPort=3308、ProjectRoot=H:\ALE-Workbench\App）。
+- 升级后验收：后端 8002 启动成功（uvicorn PID 55212）、`/health` database=ok、`/openapi.json` version=1.9.0、EPC 三路由 `/epc/results|/calculator|/predict` 上线；`/calculator` 返回 10 Å/cycle（before100/after90/cycles10）、非法 cycles=0 返回 422；`/results`/`/predict` 无鉴权 401、`/login` 200。旧数据 83/83/2 正常读取，EPC 新功能正常。
+- 安装包 `launcher/dist/ALE-Workbench-Setup-x64.exe`（239,580,874 字节，SHA-256 `AA52F34F096A32F354C0C8060DB16622B73A8444C05A3651EDD432FCA6150574`）。
+- 未 commit/push，未触碰 dev 数据，未覆盖正式 MySQL（dev 3307 未动）。
+
+## 2026-11-12 启动器「打开即用」+ 软件图标 + 预设管理员账户
+
+- 目标：用户要求打开启动器就直达工作站（不再点「启动工作站」按钮）、补软件图标、并在安装包内预置管理员账户/密码使首次打开即可登录。
+- 启动器自动启动：`AppConfig.AutoStartOnLaunch` 默认 true，`App.xaml.cs` 启动时 `TriggerAutoStartAsync()`（本地项目有效时）；`MainWindow.xaml` 仍保留按钮便于手动停止/重启/查看日志。启动器 `config.json`（%APPDATA%\ALE Workbench Launcher）持久化 BackendPort=8002、DbPort=3308。
+- 软件图标：`launcher/ALE-Workbench-Launcher/Assets/app.ico`（7 尺寸 16–256，由 frontend/public/icons/icon.svg 经 Pillow 生成，gen_icon.py 保留）；csproj 加 `ApplicationIcon` + `Resource`，`MainWindow.xaml` 窗口 `Icon`，`App.xaml.cs` 托盘图标 `Icon.ExtractAssociatedIcon`。launcher 版本显示 1.9.0。
+- 修复 `ale-ctl.ps1`：`$pythonPath` 改为便携 `python\python.exe`（回退 `backend\.venv-win`，与 start-workbench.ps1 一致，否则后端实际跑便携解释器时身份校验误判 foreign）；`$expectedVersion` 1.8.0→1.9.0。
+- 修复 `/api-contract` 版本：`api/openapi/openapi.yaml` 与 `openapi.bundled.yaml` 的 `info.version` 1.8.0→1.9.0（start-workbench.ps1 健康检查按 1.9.0 校验，旧值导致「Service did not pass version/routes/health checks」）。已同步已安装副本与 H:\ALE_AI。
+- 补首次初始化缺口：deploy-mysql.ps1 此前只生成 `.dbcreds/.appcreds/.env`，不生成 `backend/.setup-code`，全新安装首次初始化会报 `Setup code is not configured`。已加「缺则生成、升级不覆盖」的一次性访问码生成（仅当无预置管理员时作为回退引导）。
+- 预置管理员账户（用户明确要求）：新增 `database/seed_admin.py`（幂等：仅当 users 表无 role='admin' 时插入 admin/management，绝不覆盖既有管理员；Argon2 哈希由 argon2-cffi 生成，与后端 hasher 同库同参数）；预设密码放 `database/.admin-password`（已加入 .gitignore 不提交、不进入版本库）；`deploy-mysql.ps1` 在 migrate 后读取该文件经 `ALE_ADMIN_PASSWORD` 环境变量传给 seed_admin.py，成功后删除明文文件；`build-installer.ps1` 从 worktree 复制 seed_admin.py + .admin-password 进 staging（.iss 注释标注为唯一刻意的密钥例外）。
+- 安全边界：预置密码随安装包分发（用户明确要求、本机 127.0.0.1 单机场景），但**不写入版本库/报告/日志**（.admin-password 已 gitignore），首次登录后建议修改；密码不进入 seed_admin.py 源码（仅部署时经环境变量/文件注入）。
+- 校验（本机，未触生产库）：argon2 哈希/校验往返通过且不匹配抛 VerifyMismatchError（与后端 verify 一致）；seed_admin.load_app_creds 对 apply_schema.py 的多账户 .appcreds 格式解析正确（取 ale_app）；deploy-mysql.ps1 / build-installer.ps1 PowerShell 语法解析通过；seed_admin.py `py_compile` 通过。**诚实标注**：未在干净目标机跑通「全新安装→自动建库→预置 admin→登录」端到端（无 VM；且当前生产 3308 已存在管理员，种子脚本会跳过不覆盖）。
+- 补覆盖安装迁移缺口（用户要求）：deploy-mysql.ps1「检测到已有 MySQL」分支现在也会设 `ALE_DB_HOST/PORT` 并跑一次 `migrate.py`（幂等，先快照再只补未应用迁移，绝不重建表/动数据）；`$python`/`$migrateScript` 解析上移到脚本顶部供两分支共用。以后无论纯代码还是改数据库结构，覆盖安装都能自动迁移。
+- 安装包重新构建中（含 launcher + setup-code + seed + 自动迁移改动）；完成后更新 SHA256SUMS 与发布报告。未 commit/push。
+
+## 2026-11-12 覆盖安装实测 + 迁移闸门缺陷修复
+
+- 目标：用户要求「打包完后告诉我，并帮助我覆盖安装」——在已有 v1.9.0 生产环境上覆盖安装，验证只更新软件、不动实验数据。
+- 覆盖前备份：`mysqldump`（root 空密码，--single-transaction --routines --triggers）→ `H:\ALE-Workbench-Data\backups\ale_workbench_pre_upgrade_20261112.sql`，exit 0，591,085 字节。
+- 停止后端 8002（PID 61164，`ale-ctl.ps1 -Action stop -Port 8002` 返回 stopped）与 MySQL 服务 `ALEWorkbenchMySQL`（3308）。
+- 静默覆盖安装 `/VERYSILENT /SUPPRESSMSGBOXES /DIR=H:\ALE-Workbench\App`；文件更新至 1.9.0（`backend/app/version.py`=1.9.0、`database/seed_admin.py` 就位）。
+- **发现安装器 `DeployLocalMySQL`（deploy-mysql.ps1）返回 exit 1**：MySQL 错误日志证明 `apply_schema.py` 已执行（CREATE USER 告警），`migrate.py --status` 也能连库通过（16 迁移全部校验），但完整 `migrate.py` 直接 `SystemExit(1)`。根因：主仓库 `migrate.py` 新增「连接 schema 为 `ale_workbench` 且未传 `--confirm-production` 时拒绝迁移」的安全闸门，而 `deploy-mysql.ps1` 未传该参数；另有 `Test-MysqlUsable` 用裸 `mysql.exe`（不在 PATH）使「复用已有 MySQL」分支误判 `conflict`，升级迁移根本走不到。数据库本身始终完好、无任何变更（58 表、processes/quick_runs/users=83/83/2）。
+- 修复 `launcher/deploy/deploy-mysql.ps1`（worktree + 已安装副本同步）：① 两处 `migrate.py` 调用显式传 `--confirm-production`（安装器即用户显式触发的升级路径，migrate.py 本身先快照再只补未应用迁移）；② `Test-MysqlUsable` 改用 `$MysqlDir\bin\mysql.exe` 全路径；③ 各 Python 脚本输出从 `Out-Null` 改为写入 `deploy-mysql.log`（原故障丢弃输出、不可诊断）。PowerShell `Parser::ParseFile` 语法解析通过。
+- 重启后端 8002（`start-workbench.ps1 -Port 8002 -DbPort 3308 -NoBrowser`）：`/health` database=ok、`/openapi.json` version=1.9.0、EPC 三路由上线、`/epc/calculator`=10.0 Å/cycle、`admin`（role=admin/active/management）在库。旧数据 83/83/2 完好。
+- 诚实标注：本会话**未手动**对生产库执行 `migrate.py --confirm-production`（安全策略阻止手动生产迁移，属正确保护，未绕过）；该修复经安装器路径生效，需下一次覆盖安装端到端验证迁移闸门。
+- 安装包已重新构建完成：`launcher/dist/ALE-Workbench-Setup-x64.exe`，239,551,260 字节，SHA-256 `1D80EE9F05A02817039F801804E11760B9753371B834D427663547E7B92576A9`；`launcher/dist/SHA256SUMS.txt` 已同步更新。
+- 未 commit/push。
+
+## 2026-11-12 启动器启动进度条 + 隐藏后端黑框 + 地址显示修正
+
+- 用户反馈：桌面启动器「启动失败」，且希望启动时有一个炫酷的进度条/提示显示「正在启动什么什么」；并明确「不希望启动时弹出 cmd 黑框」。
+- 启动失败根因（已查明，非本次新引入）：`launcher.log` 显示 10:17 一次「Service did not pass version/routes/health checks」——后端仍跑 1.8.0 而启动器/脚本按 1.9.0 校验（安全版本闸门正确拒绝），随后 10:26 已成功启动 PID 61164（1.9.0）。本次实测再次 `start-workbench.ps1 -Port 8002 -DbPort 3308 -NoBrowser` 复现后端 `Application startup complete`、端口 8002 监听正常，确认启动机制可用；问题在「启动慢（依赖校验/完整性指纹/就绪探针 + 首次安装 pip）但界面无任何过程反馈」。
+- 进度条（炫酷）：`start-workbench.ps1` 新增 `Write-ProgressStep(值,文案)`，在每个阶段（准备环境/检查端口/检查依赖/pip 安装/校验数据库/校验完整性/启动后端/等待就绪/记录状态）写入 `backend\.runtime\server-<port>.progress.json`；launcher `WorkbenchController.ReadStartProgress()` 读该文件，`StatusInfo` 增 `ProgressValue/ProgressMessage`；`MainWindow` 头部新增 `GlowProgressBar`（App.xaml 渐变 + 圆角 + 辉光 DropShadowEffect）与步骤文案/百分比，`ApplyStatus`→`UpdateProgress` 仅在 Starting 时显示，try/catch 兜底防崩溃。
+- 隐藏黑框：`start-workbench.ps1` 第 331 行 uvicorn `Start-Process` 增加 `-WindowStyle Hidden`（此前后端 python 会弹独立控制台窗口）；launcher 侧 `powershell.exe -WindowStyle Hidden -File` + `CreateNoWindow` 本就隐藏，本改动补齐后端进程窗口。
+- 地址显示修正：`MainWindow.xaml` 的 `UrlValue` 默认文案由硬编码 `http://127.0.0.1:8001/login` 改为 `（未配置）`，避免未回填时误显开发端口 8001（实际生产端口 8002，由 config.json BackendPort 驱动）。
+- 校验：`start-workbench.ps1` `Parser::ParseFile` 语法通过；launcher `dotnet publish -c Release` 成功；新 exe 冒烟 `Start-Process` 9 秒后进程仍存活（无 XAML 解析/启动崩溃）。未 commit/push，未触碰数据库。
+- 覆盖安装实测：备份（`ale_workbench_pre_launcher_fix_20261112.sql`，591,085 字节）→ 停后端 + 停 MySQL 服务 → 静默覆盖安装。首次安装因 Git Bash 把 `/VERYSILENT` 误转 `D:/Program Files/Git/…` 致 GUI 模式退出码 2（目标目录未受损，已核实旧文件 mtime 不变）；改经 PowerShell `Start-Process -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/DIR=…'` 直传后 exit 0。
+- 安装后验证：MySQL 3308 自动重启、`deploy-mysql.log` 16 迁移全部「Already applied」（`--confirm-production` 闸门修复端到端通过）、数据完整 58 表 / 83·83·2、seed 检测已有管理员跳过。后端 8002：`/health` code=0/status=ok/database=ok、`/openapi.json` 1.9.0、EPC 三路由、`/epc/calculator`=10.0。**进度文件** `server-8002.progress.json` 实测 4→8→14→58→62→68→92→94→100；**后端进程 MainWindowHandle=0**（无黑框）；新启动器冒烟 ALIVE。
+- 安装包重打：`launcher/dist/ALE-Workbench-Setup-x64.exe`，239,524,909 字节，SHA-256 `A45504692BDA8611DE60F8A6BF91DE2AF538CCE1E5B3F69C780641ACA5ECEA59`；`SHA256SUMS.txt` 已同步。未 commit/push。
+
+## 启动器「启动失败」根因修复 + admin 密码重置（2026-11-12 下午）
+
+**启动器「启动失败」根因**：后端一直健康运行在 8002（PID 41492），真正原因是验证过程中反复拉起的旧启动器实例残留、占住单实例锁，用户后续启动被挡在旧窗口的「启动失败」画面，地址停在旧默认 8001。非软件缺陷。
+- 处置：结束卡死实例（PID 43100）+ 残留后台 start-workbench 脚本；重新拉起全新实例，实测正常显示「正常运行」、地址 8002/login、数据库已连接，日志正常写入 Launcher started。
+- 证据：ale-ctl status -Port 8002 = running/healthy/database=ok/pid=41492；新实例窗口 visible=True；旧实例窗口 visible=False 且无日志写入。
+
+**admin 密码重置**：生产库 admin 是从开发库（3307）迁移来的旧密码，与安装包预设值不一致，实测登录返回 Invalid credentials。经用户确认，用 launcher/reset-admin-pw.py 将 admin 的 password_hash 更新为预设值并使 token_version 自增（仅单条 users 更新，未动实验数据/结构）。
+- 结果：RESULT: OK affected=1，user_id=28742 username=admin role=admin status=active token_version=2。
+- 验证：POST /api/v1/auth/login（admin / 预设密码）→ code=0、ok，登录通过。
