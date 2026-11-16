@@ -78,7 +78,14 @@ from .common import fail
 
 
 def originals_root():
-    return Path(os.getenv('ALE_ORIGINALS_ROOT', str(ROOT / 'storage' / 'originals')))
+    """Test databases never share the production originals directory."""
+    configured = os.getenv('ALE_ORIGINALS_ROOT')
+    if configured:
+        return Path(configured)
+    from .config import database_name
+    if database_name().endswith('_test'):
+        return ROOT / 'storage-test' / 'originals'
+    return ROOT / 'storage' / 'originals'
 
 
 def storage_key(sha256):

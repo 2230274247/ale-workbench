@@ -54,6 +54,7 @@ const navGroups = computed(() => [
   { id: 'analysis' as const, label: '数据分析', icon: ChartNoAxesCombined, items: [
     { path: '/imports', label: '统一导入中心', icon: UploadCloud },
     { path: '/measurements', label: '正式测量', icon: ScanLine },
+    { path: '/epc', label: 'EPC 预测与可视化', icon: Activity },
     { path: '/source-files', label: '原始文件档案', icon: FolderArchive },
     // Main plots task owns /analysis. Enable only after its real route exists.
     ...(router.getRoutes().some(r => r.path === '/analysis') ? [{ path: '/analysis', label: '数据可视化', icon: ChartNoAxesCombined }] : []),

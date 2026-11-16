@@ -11,3 +11,5 @@
 .quick-scroll,.quick-matrix td,.quick-page .qn{position:relative}
 .quick-page{container-type:inline-size}
 @container(max-width:600px){.quick-grid.three,.quick-grid.two,.quick-filter,.quick-metrics{grid-template-columns:minmax(0,1fr)}.quick-save button{flex:1 1 100%}.quick-actions .grow{flex-basis:100%}}
+
+.quick-page-size{flex-direction:row!important;align-items:center;gap:6px!important;font-size:14px;color:var(--muted,#536b7d);white-space:nowrap}.quick-page-size select{width:auto;min-width:64px;min-height:36px;padding:4px 8px}

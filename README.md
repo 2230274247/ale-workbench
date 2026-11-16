@@ -157,6 +157,7 @@ $env:ALE_DB_NAME="ale_workbench_test"; $env:ALE_REQUIRE_TEST_DB="1"
 - 所有凭据、密钥、原始文件均不入版本控制；提交前请确认 `git status` 中没有 `.env` / `.appcreds` / `.setup-code`。
 - 数据库 `payload` JSON 是权威快照，显式列只做确定性投影；不重写历史、不覆盖主键。
 - 数据体检与 EPC 均为确定性计算，不做训练、不生成预测指标。
+- **P0 数据安全基线**：正式库 `ale_workbench` 与测试库 `*_test` 由代码强制隔离（`ALE_ENVIRONMENT=testing` 必须配 `_test` 库）；备份带 SHA-256 与清单并写到项目外；恢复只允许进 `*_test`；生产迁移需 `--confirm-production`。详见 `docs/P0_数据安全基线.md`。
 
 ## 文档索引
 
@@ -165,6 +166,8 @@ $env:ALE_DB_NAME="ale_workbench_test"; $env:ALE_REQUIRE_TEST_DB="1"
 - `docs/ale_v2_2/03_api_contract.md` API 合同
 - `docs/ale_v2_2/04_excel_mapping_contract.md` Excel 映射与批量导入合同
 - `docs/ale_v2_2/05_mobile_web.md` 移动网页版与 App / 小程序升级路径
+- `docs/P0_数据安全基线.md` 环境隔离、备份、恢复、升级前保护（P0 必读）
+- `docs/P0_审计报告.md` P0 只读审计：现状架构、风险分级、改动清单
 - `docs/配置与部署.md` 环境变量、目录、常见故障
 - `progress_log.md` 开发进度（按日期倒序）
 

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ALE 实验工作台 API
-  version: 1.8.0
+  version: 1.9.0
   summary: 第八轮：记录生命周期、实验向导与首页聚合
   description: '账户隔离同步：用途management/research/testing、配置环境、可选admin_global_scope；AI用户月额度/策略及policy、usage/me和admin分账。
 

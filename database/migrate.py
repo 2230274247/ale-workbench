@@ -1032,6 +1032,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--status', action='store_true')
     parser.add_argument('--database', default='ale_workbench', help='Existing production or explicit *_test database')
+    parser.add_argument('--confirm-production', action='store_true',
+                        help='Required before DDL is applied to the production database')
     args = parser.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9_]+',args.database) or (args.database!='ale_workbench' and not args.database.endswith('_test')):
         raise RuntimeError('Only the existing production or an explicit *_test database is allowed')
@@ -1039,6 +1041,18 @@ def main():
     conn = pymysql.connect(host=os.getenv('ALE_DB_HOST', '127.0.0.1' if os.name == 'nt' else '172.16.10.254'), port=int(os.getenv('ALE_DB_PORT', '3307')),
                            user=user, password=password, database=args.database, charset='utf8mb4', autocommit=True)
     try:
+        with conn.cursor() as cur:
+            # P0 gate: keyed on the schema actually connected to, never on the
+            # default argument, so harnesses redirecting the connection still work.
+            cur.execute('SELECT DATABASE()')
+            connected_schema = cur.fetchone()[0] or ''
+            if (connected_schema == 'ale_workbench' and not args.status
+                    and not args.confirm_production):
+                raise SystemExit(
+                    'Refusing to migrate the production database without explicit confirmation.\n'
+                    ' 1) python database/pre_upgrade_check.py             # read-only checks + pre-upgrade backup\n'
+                    ' 2) python database/pre_upgrade_check.py --rehearse  # migrate a *_test copy first\n'
+                    ' 3) review the report, then rerun with --confirm-production')
         with conn.cursor() as cur:
             cur.execute("SELECT GET_LOCK('ale_workbench_migrations',10)")
             if cur.fetchone()[0] != 1:

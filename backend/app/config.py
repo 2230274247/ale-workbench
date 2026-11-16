@@ -1,6 +1,7 @@
 """Configuration: never include credential values in diagnostics."""
 import configparser
 import os
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import URL
@@ -9,15 +10,23 @@ ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / 'backend'
 load_dotenv(BACKEND / '.env', override=False)
 
+# The only database that holds real scientific records. Environment isolation is
+# enforced by name so a forgotten variable can never surface as a production write.
+PRODUCTION_DATABASE = 'ale_workbench'
+TEST_DATABASE_SUFFIX = '_test'
+
 
 def environment():
     """Deployment identity comes only from explicit instance configuration."""
     name = os.getenv('ALE_ENVIRONMENT', 'production')
     if name not in ('production', 'testing'):
         raise RuntimeError('ALE_ENVIRONMENT must be production or testing')
+    default_label = '生产环境' if name == 'production' else '测试环境'
+    default_instance = ('ale-workbench-production' if name == 'production'
+                        else 'ale-workbench-testing')
     return {'name': name,
-            'label': os.getenv('ALE_ENVIRONMENT_LABEL', '生产环境'),
-            'instance_id': os.getenv('ALE_INSTANCE_ID', 'ale-workbench-production')}
+            'label': os.getenv('ALE_ENVIRONMENT_LABEL', default_label),
+            'instance_id': os.getenv('ALE_INSTANCE_ID', default_instance)}
 
 
 def credentials():
@@ -50,12 +59,33 @@ def credentials():
     return account
 
 
+def database_name():
+    """Resolve and validate the target schema before any connection is created.
+
+    testing  -> must end with `_test` and defaults to `<production>_test`
+    production -> may never be pointed at a scratch schema by accident; a `_test`
+                  name is tolerated so read-only harnesses can run with the label
+                  untouched, but it is never treated as the production database.
+    """
+    explicit = os.getenv('ALE_DB_NAME', '').strip()
+    name = explicit or (PRODUCTION_DATABASE + TEST_DATABASE_SUFFIX
+                        if environment()['name'] == 'testing'
+                        else credentials().get('database', PRODUCTION_DATABASE))
+    if not re.fullmatch(r'[A-Za-z0-9_]+', name):
+        raise RuntimeError('ALE_DB_NAME may contain only letters, digits and underscores')
+    if environment()['name'] == 'testing' and not name.endswith(TEST_DATABASE_SUFFIX):
+        raise RuntimeError(
+            'ALE_ENVIRONMENT=testing requires an independent database ending with '
+            f'{TEST_DATABASE_SUFFIX}; refusing to connect to {name!r}')
+    return name
+
+
 def database_url():
     c = credentials()
     return URL.create('mysql+pymysql', username='ale_app', password=os.getenv('ALE_DB_PASSWORD', c.get('password')),
                       host=os.getenv('ALE_DB_HOST', '127.0.0.1' if os.name == 'nt' else '172.16.10.254'),
                       port=int(os.getenv('ALE_DB_PORT', '3307')),
-                      database=os.getenv('ALE_DB_NAME', c.get('database', 'ale_workbench')),
+                      database=database_name(),
                       query={'charset': 'utf8mb4'})
 
 
