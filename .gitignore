@@ -48,3 +48,18 @@ storage-backups/
 Thumbs.db
 desktop.ini
 *.tmp
+
+# Desktop build output, browser profiles and local credentials
+*.admin-password
+launcher/**/bin/
+launcher/**/obj/
+launcher/**/publish/
+launcher/staging/
+launcher/dist/
+*.exe.WebView2/
+/launcher/diag-*
+/launcher/reset-admin-pw.py
+/launcher/append-log.ps1
+/launcher/log-entry.md
+/stderr.txt
+/EPC-v*-发布报告.md

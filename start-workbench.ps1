@@ -1,33 +1,115 @@
-﻿param([switch]$Install, [ValidateRange(1,65535)][int]$Port = 8001)
+﻿param([switch]$Install, [switch]$NoBrowser, [switch]$Wait, [ValidateRange(1,65535)][int]$Port = 8001, [ValidateRange(1,65535)][int]$DbPort = 3307)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
 $backendRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'backend')).TrimEnd('\')
 Set-Location $projectRoot
 $runtimePath = Join-Path $projectRoot 'backend\.runtime'
 New-Item -ItemType Directory -Force $runtimePath | Out-Null
-$pythonPath = Join-Path $projectRoot 'backend\.venv-win\Scripts\python.exe'
-$expectedVersion = '1.9.0'
+$pythonPath = Join-Path $projectRoot 'python\python.exe'
+if (!(Test-Path -LiteralPath $pythonPath)) {
+    $pythonPath = Join-Path $projectRoot 'backend\.venv-win\Scripts\python.exe'
+}
+$versionSource = Get-Content -LiteralPath (Join-Path $backendRoot 'app\version.py') -Raw
+if ($versionSource -notmatch '(?m)^APP_VERSION\s*=\s*[''"]([0-9]+\.[0-9]+\.[0-9]+)[''"]') {
+    throw 'Cannot read APP_VERSION from backend/app/version.py.'
+}
+$expectedVersion = $Matches[1]
 $statePath = Join-Path $runtimePath "server-$Port.json"
 $baseUrl = "http://127.0.0.1:$Port"
+Write-Output "Project: $projectRoot"
+Write-Output "Version: $expectedVersion"
+if ((Test-Path (Join-Path $projectRoot '.git')) -and (Get-Command git.exe -ErrorAction SilentlyContinue)) {
+    $revision = & git.exe -C $projectRoot rev-parse --short HEAD
+    if ($LASTEXITCODE -eq 0) { Write-Output "Git commit: $revision" }
+}
 
+function Get-TcpListenEndpoints {
+    @([Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() |
+        Where-Object { $_.Port -eq $Port })
+}
 function Get-Listeners {
-    # Do not treat an unavailable TCP inspection API as a free port.
-    # Python 3.14 (uvicorn) reports its listening socket with an empty State here,
-    # so -State Listen silently misses it. Match by port and keep the listening
-    # side only: State Listen/Bound, or an empty State with no remote peer
-    # (RemotePort 0); an in-flight connection always has a remote port.
-    # A vacant port legitimately returns no rows (NotFound); any other failure
-    # must surface instead of being mistaken for a free port.
+    # Windows can expose a live Python socket with an empty or Closed CIM State.
+    # Cross-check remote-less rows against the OS listener endpoint API instead
+    # of trusting the State label. Never treat an inspection error as a free port.
+    $endpoints = @(Get-TcpListenEndpoints)
     try {
         $rows = @(Get-NetTCPConnection -LocalPort $Port -ErrorAction Stop)
     } catch {
-        if ($_.FullyQualifiedErrorId -like 'CmdletizationQuery_NotFound*') { return @() }
+        if ($_.FullyQualifiedErrorId -like 'CmdletizationQuery_NotFound*' -and !$endpoints.Count) { return @() }
         throw
     }
-    @($rows | Where-Object {
-        $s = [string]$_.State
-        ($s -in 'Listen','Bound') -or ($s -eq '' -and [int]$_.RemotePort -eq 0)
+    $listeners = @($rows | Where-Object {
+        $row = $_
+        $matched = @($endpoints | Where-Object { $_.Address.ToString() -eq $row.LocalAddress }).Count -gt 0
+        ([string]$row.State -in 'Listen','Bound') -or ([int]$row.RemotePort -eq 0 -and $matched)
     })
+    foreach ($endpoint in $endpoints) {
+        if (!@($listeners | Where-Object { $_.LocalAddress -eq $endpoint.Address.ToString() }).Count) {
+            throw "Port $Port listener ownership could not be inspected. No process was stopped. Retry the launcher."
+        }
+    }
+    $listeners
+}
+function Get-PublicFilesFingerprint($Files, $Root) {
+    $lines = @($Files | Sort-Object FullName | ForEach-Object {
+        $_.FullName.Substring($Root.Length) + ':' + (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+    })
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($lines -join "`n"))))).Replace('-','') }
+    finally { $sha.Dispose() }
+}
+function Get-FrontendSourceFingerprint {
+    $root = Join-Path $projectRoot 'frontend'
+    $files = @()
+    foreach ($name in @('src','public','scripts')) {
+        $directory = Join-Path $root $name
+        if (Test-Path -LiteralPath $directory) { $files += @(Get-ChildItem -LiteralPath $directory -Recurse -File) }
+    }
+    $files += @(Get-ChildItem -LiteralPath $root -File | Where-Object {
+        $_.Name -match '^(package(-lock)?\.json|index\.html|vite\.config\.[cm]?[jt]s|tsconfig.*\.json)$'
+    })
+    Get-PublicFilesFingerprint $files $root
+}
+function Get-FrontendDistFingerprint {
+    $root = Join-Path $projectRoot 'frontend\dist'
+    if (!(Test-Path -LiteralPath (Join-Path $root 'index.html'))) { return '' }
+    Get-PublicFilesFingerprint @(Get-ChildItem -LiteralPath $root -Recurse -File) $root
+}
+function Ensure-FrontendBuild {
+    $root = Join-Path $projectRoot 'frontend'
+    $recordPath = Join-Path $root '.runtime\build.json'
+    $sourceHash = Get-FrontendSourceFingerprint
+    $distHash = Get-FrontendDistFingerprint
+    $record = $null
+    try { $record = Get-Content -LiteralPath $recordPath -Raw -ErrorAction Stop | ConvertFrom-Json } catch {}
+    if ($record -and $record.schema -eq 1 -and $record.sourceHash -ceq $sourceHash -and
+        $distHash -and $record.distHash -ceq $distHash) {
+        Write-Output "Frontend: verified build $($distHash.Substring(0,12))"
+        return
+    }
+    $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if (!$npm) { throw 'Frontend source/build changed. Install Node.js 20.19+ and rerun this launcher to rebuild the current checkout.' }
+    $lockHash = (Get-FileHash -LiteralPath (Join-Path $root 'package-lock.json') -Algorithm SHA256).Hash
+    $dependencyMarker = Join-Path $root 'node_modules\.ale-package-lock.sha256'
+    $installedHash = ''
+    if (Test-Path -LiteralPath $dependencyMarker) { $installedHash = (Get-Content -LiteralPath $dependencyMarker -Raw).Trim() }
+    if ($installedHash -cne $lockHash -or !(Test-Path -LiteralPath (Join-Path $root 'node_modules\.bin\vite.cmd'))) {
+        & $npm.Source --prefix $root ci --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw 'Frontend dependency installation failed. Existing backend was not stopped.' }
+        Set-Content -LiteralPath $dependencyMarker -Value $lockHash -Encoding ASCII
+    }
+    Write-Output "Building frontend from $root"
+    & $npm.Source --prefix $root run build
+    if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed. Existing backend was not stopped.' }
+    if ((Get-FrontendSourceFingerprint) -cne $sourceHash) { throw 'Frontend source changed during build. Rerun launcher.' }
+    $distHash = Get-FrontendDistFingerprint
+    if (!$distHash) { throw 'Frontend build did not produce dist/index.html.' }
+    New-Item -ItemType Directory -Force (Split-Path -Parent $recordPath) | Out-Null
+    $tempPath = "$recordPath.$([Guid]::NewGuid().ToString('N')).tmp"
+    [ordered]@{ schema=1; sourceHash=$sourceHash; distHash=$distHash; builtUtc=[DateTime]::UtcNow.ToString('o') } |
+        ConvertTo-Json | Set-Content -LiteralPath $tempPath -Encoding UTF8
+    Save-StateRecord $tempPath $recordPath
+    Write-Output "Frontend: built and verified $($distHash.Substring(0,12))"
 }
 function Get-BackendFingerprint {
     # Only public source/build inputs; never read .env, keys, data or uploads.
@@ -73,7 +155,14 @@ function Test-UvicornCommand($CommandLine) {
     return ($seenHost -and $seenPort -and $seenAppDir)
 }
 function Get-ManualAdvice {
-    "One-time legacy/untrusted listener: no automatic reuse or stop. Inspect Get-NetTCPConnection and Get-CimInstance Win32_Process (PID, ParentProcessId, CreationDate, ExecutablePath, CommandLine). Executable path does not prove working directory. Use Ctrl+C in the known original project window; otherwise manually confirm launch context before a targeted stop. See startup instructions, or use -Port 8001."
+    'No automatic reuse or stop of an unverified process. Check the PID, creation time and --app-dir with Get-NetTCPConnection and Get-CimInstance Win32_Process. Close the known original server with Ctrl+C, or choose a different free port (for example -Port 8002). See startup instructions.'
+}
+function Wait-ForBackend($ProcessId) {
+    if (!$Wait) { return }
+    # A foreground preview must not keep the launcher lock for the server lifetime.
+    if ($script:launchLock) { $script:launchLock.Dispose(); $script:launchLock = $null }
+    Write-Output "Backend PID=$ProcessId is running; press Ctrl+C to leave this foreground launcher."
+    Wait-Process -Id $ProcessId -ErrorAction SilentlyContinue
 }
 function Get-ProjectListener {
     $listeners = @(Get-Listeners)
@@ -304,9 +393,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Python dependency import check failed.' }
         Set-Content -Path $markerPath -Value $requirementsHash -Encoding ASCII
     }
-    if (!(Test-Path (Join-Path $projectRoot 'frontend\dist\index.html'))) { throw 'Missing frontend build.' }
+    Ensure-FrontendBuild
     $env:ALE_DB_HOST = '127.0.0.1'
-    $env:ALE_DB_PORT = '3307'
+    $env:ALE_DB_PORT = "$DbPort"
     # Read-only current-code readiness: DB connection + required tables/columns.
     # Do not print exception text (it can contain connection details); never migrate here.
     $readinessProbe = @'
@@ -331,7 +420,8 @@ except Exception:
             if ($currentIdentity.Id -ne $existingIdentity.Id -or $currentIdentity.CreatedUtc -cne $existingIdentity.CreatedUtc -or
                 (Get-BackendFingerprint) -cne $fingerprint) { throw 'Backend/source changed during reuse checks. Rerun launcher.' }
             Write-Output "Reusing verified $expectedVersion backend PID=$($existingIdentity.Id), created=$($existingIdentity.CreatedUtc)."
-            Start-Process "$baseUrl/login"
+            if (!$NoBrowser) { Start-Process "$baseUrl/login" }
+            Wait-ForBackend $existingIdentity.Id
             return
         }
         # A matched trusted record permits restarting an older build; missing/mismatched records already refused.
@@ -363,7 +453,8 @@ except Exception:
     Write-Output "Verified $expectedVersion backend PID=$($newIdentity.Id), created=$($newIdentity.CreatedUtc)."
     Write-Output "Workbench: $baseUrl/login"
     Write-Output 'First visit: use backend\.setup-code to create your administrator. No default password.'
-    Start-Process "$baseUrl/login"
+    if (!$NoBrowser) { Start-Process "$baseUrl/login" }
+    Wait-ForBackend $newIdentity.Id
 } finally {
     if ($launchLock) { $launchLock.Dispose() }
 }

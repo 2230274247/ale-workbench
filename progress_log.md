@@ -1,5 +1,14 @@
 # ALE 工作台开发进度
 
+## 2026-11-16 统一主目录、工作树源码与启动入口（进行中）
+
+- 用户授权保存未提交代码并推送 GitHub。主目录原始开发改动已保存为 `810e917`，在当前整合分支重放为 `8525072`；保留日期规范化、新材料审核、分页及已提交的快录删除/归档功能。
+- `start-workbench.ps1` 从 `backend/app/version.py` 读取版本，显示实际代码目录与 Git 提交；前端源码/构建双指纹不匹配时先构建再启动。监听检测结合系统监听端点与 CIM PID，保持未知进程拒绝接管；支持 NoBrowser、Wait、DbPort 和便携 Python。
+- 保存桌面启动器/安装器源码；安装器从同一源码快照取应用与前端，禁止打包本机管理员密码；忽略构建、浏览器缓存、诊断脚本及运行时文件。不运行安装/迁移，不上传旧安装包。
+- 已运行 `powershell.exe -NoProfile -File scripts/tests/start-workbench.Tests.ps1`：13 passed（离线模拟，不涉及数据库或服务启停）。`npm --prefix frontend ci --no-audit --no-fund` 成功；`npm --prefix frontend run build`（vue-tsc + Vite）成功。
+- 隔离数据库回归、主目录实际启动、GitHub 推送与最终提交号待补；不将离线检查视为正式账户验收。
+
+
 ## 2026-11-13 修复批量导入因负均匀性导致整批失败
 
 **问题**：导入 `实验参数记录_中微比赛2026.11.1.xlsx`（278 行）预览正常，但「确认入库」报错、数据未入库。
