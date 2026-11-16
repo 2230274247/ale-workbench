@@ -10,7 +10,8 @@
 - 实机首次启动复现：CIM State=null 且 .NET 监听端点列表为空，但 HTTP/后端正常。最终检测改为将 RemotePort=0 行视为占用候选，再校验进程链及可信记录；新增该回归用例，离线检查 14 passed。自动审批拒绝停止本轮预览遗留 PID43280，8001 保留，统一入口及相关默认端口改为 8002；不伪造或放宽可信记录。
 - 主目录独立 ale_workbench_test 与独立 storage-test/merge-20261116/originals：pytest test_quick_v22.py、test_quick_delete_archive.py、test_epc.py 共 38 passed；test_p0_data_safety.py 13 passed，含测试库备份/恢复演练。两组各有 Starlette/AnyIO 弃用提示。正式账户与桌面安装包/App 构建未验收。
 - 实际 8002 新启动 Verified 1.9.0，PID35816、创建时间 2026-11-16T02:11:47.952776Z；再次运行主目录启动器 -NoBrowser 成功 Reusing 同一 PID，schema=2/项目根/创建时间匹配；health/database=ok，归档/批量删除/EPC 路由存在。浏览器登录页正常，未登录刷新 401 为预期。test_contract.py 另有 2 passed，后端三组共 53 passed。默认入口统一为 http://127.0.0.1:8002/login。
-- 详细命令、提交映射、实机证据及未验收边界见 `docs/统一版本与启动验证_2026-11-16.md`。GitHub 推送在最终文档提交后执行，远端同步结果以会话最终核对为准。
+- 详细命令、提交映射、实机证据及未验收边界见 `docs/统一版本与启动验证_2026-11-16.md`。
+- GitHub 同步已实测成功：Windows 系统代理为 `127.0.0.1:10808`，Git 未配置代理环境变量；使用仅本次命令生效的 `git -c http.proxy=http://127.0.0.1:10808 -c http.version=HTTP/1.1 push origin main`，输出 `5667dcc..1c3c9bc main -> main`，没有强推或改写历史。随后通过 GitHub API 核对远端 `main`、本地 `main` 和主目录 HEAD 均为 `1c3c9bc9305b84ef09de443dfcfa75026caab117`，两个工作区干净，上述各分支均为 main 祖先。v2ray 保持开启，无需修改系统或全局 Git 配置。本条及验证文档作为后续文档提交同步，最终提交号以 GitHub/本地再核对结果为准。
 
 
 ## 2026-11-13 修复批量导入因负均匀性导致整批失败
